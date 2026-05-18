@@ -1,0 +1,9 @@
+# This file is just a reminder — delete it when your paths are configured.
+#
+# When running CMake (via VS 2022 or cmake-gui), set these variables:
+#
+#   CMAKE_PREFIX_PATH = C:/Qt/6.8.x/msvc2022_64
+#   OpenCV_DIR        = C:/opencv/build
+#
+# In VS 2022: Project > CMake Settings > CMake variables and cache
+# Or add to CMakePresets.json (preferred for team sharing).

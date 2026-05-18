@@ -1,0 +1,71 @@
+# Build output
+build/
+out/
+cmake-build-*/
+*.exe
+*.dll
+*.lib
+*.obj
+*.pdb
+*.ilk
+*.exp
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+Makefile
+_deps/
+*.cmake
+!cmake/*.cmake
+
+# Visual Studio
+.vs/
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.aps
+
+# Qt
+*.pro.user
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+*.qm
+*.prl
+
+# CUDA
+*.cubin
+*.fatbin
+*.ptx
+*.cudafe1.cpp
+*.cudafe1.gpu
+*.cudafe2.cpp
+*.cudafe2.gpu
+*.gpu
+
+# OpenCV / image data — don't commit generated datasets
+output/
+datasets/
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.tiff
+*.tif
+*.exr
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
