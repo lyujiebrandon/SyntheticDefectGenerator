@@ -22,8 +22,9 @@ set(CMAKE_AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/src/ui)
 #   -DCMAKE_PREFIX_PATH="C:/Qt/6.8.0/msvc2022_64"
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets Gui Concurrent)
 
-# OpenCV: set OpenCV_DIR to your OpenCV build dir, e.g.:
-#   -DOpenCV_DIR="C:/opencv/build"
+# OpenCV: force vc16 runtime so pre-built binaries work with VS 2022
+set(OpenCV_ARCH x64)
+set(OpenCV_RUNTIME vc16)
 find_package(OpenCV REQUIRED)
 
 # ─── CUDA (Phase 3 — uncomment when ready) ────────────────────────────────────
