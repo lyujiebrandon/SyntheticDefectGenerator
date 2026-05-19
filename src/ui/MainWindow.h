@@ -29,6 +29,9 @@ private slots:
     // Tab 1 — Focal Capture
     void onConnectCamera();
     void onStartFocalSweep();
+    void onBrowseImageFolder();
+    void onCameraSourceChanged();
+    void onRefreshComPorts();
 
     // Tab 2 — Image Registration
     void onRegisterStack();
@@ -54,6 +57,13 @@ private:
     void setControlsEnabled(bool enabled);
     void showMatInLabel(QLabel* label, const cv::Mat& mat);
     void logMessage(const QString& message);
+
+    // Renders the defect preview with or without the highlight box
+    void renderDefectPreview();
+
+    cv::Mat  m_previewDefectImage;   // stored for toggle re-render
+    cv::Rect m_previewDefectBounds;
+    QString  m_previewDefectType;
 
     Ui::MainWindow* ui;
 

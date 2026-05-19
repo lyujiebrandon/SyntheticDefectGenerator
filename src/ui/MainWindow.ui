@@ -20,6 +20,86 @@
           <property name="title"><string>Camera &amp; Lens Configuration</string></property>
           <property name="maximumWidth"><number>380</number></property>
           <layout class="QVBoxLayout">
+           <!-- Camera Source selector -->
+           <item>
+            <widget class="QGroupBox" name="grpCameraSource">
+             <property name="title"><string>Camera Source</string></property>
+             <layout class="QVBoxLayout">
+              <item>
+               <widget class="QRadioButton" name="radioMockSynthetic">
+                <property name="text"><string>Mock — Synthetic (no hardware needed)</string></property>
+                <property name="checked"><bool>true</bool></property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QRadioButton" name="radioMockImages">
+                <property name="text"><string>Mock — Image Folder (pre-captured stack)</string></property>
+               </widget>
+              </item>
+              <item>
+               <layout class="QHBoxLayout">
+                <item>
+                 <spacer>
+                  <property name="orientation"><enum>Qt::Horizontal</enum></property>
+                  <property name="sizeType"><enum>QSizePolicy::Fixed</enum></property>
+                  <property name="sizeHint" stdset="0"><size><width>18</width><height>0</height></size></property>
+                 </spacer>
+                </item>
+                <item>
+                 <widget class="QLineEdit" name="lineImageFolder">
+                  <property name="placeholderText"><string>Select folder of focal stack images…</string></property>
+                  <property name="enabled"><bool>false</bool></property>
+                  <property name="readOnly"><bool>true</bool></property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="btnBrowseImageFolder">
+                  <property name="text"><string>Browse</string></property>
+                  <property name="enabled"><bool>false</bool></property>
+                  <property name="maximumWidth"><number>70</number></property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="QRadioButton" name="radioRealCamera">
+                <property name="text"><string>Real Camera (SVS-VISTEK GigE)</string></property>
+               </widget>
+              </item>
+              <item>
+               <layout class="QHBoxLayout">
+                <item>
+                 <spacer>
+                  <property name="orientation"><enum>Qt::Horizontal</enum></property>
+                  <property name="sizeType"><enum>QSizePolicy::Fixed</enum></property>
+                  <property name="sizeHint" stdset="0"><size><width>18</width><height>0</height></size></property>
+                 </spacer>
+                </item>
+                <item>
+                 <widget class="QLabel" name="lblComPort">
+                  <property name="text"><string>Lens COM Port:</string></property>
+                  <property name="enabled"><bool>false</bool></property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QComboBox" name="comboComPort">
+                  <property name="enabled"><bool>false</bool></property>
+                  <property name="minimumWidth"><number>90</number></property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="btnRefreshPorts">
+                  <property name="text"><string>&#8635;</string></property>
+                  <property name="enabled"><bool>false</bool></property>
+                  <property name="maximumWidth"><number>28</number></property>
+                  <property name="toolTip"><string>Refresh available COM ports</string></property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+             </layout>
+            </widget>
+           </item>
            <item><widget class="QLabel"><property name="text"><string>Camera Status:</string></property></widget></item>
            <item>
             <widget class="QLabel" name="lblCameraStatus">
@@ -298,6 +378,29 @@
              <property name="alignment"><set>Qt::AlignCenter</set></property>
              <property name="styleSheet"><string>background: #1a1a1a; color: #666; border: 1px solid #444;</string></property>
             </widget>
+           </item>
+           <item>
+            <layout class="QHBoxLayout">
+             <item>
+              <widget class="QLabel" name="lblDefectTypeTag">
+               <property name="text"><string>—</string></property>
+               <property name="styleSheet"><string>color: #aaa; font-style: italic;</string></property>
+              </widget>
+             </item>
+             <item>
+              <spacer>
+               <property name="orientation"><enum>Qt::Horizontal</enum></property>
+               <property name="sizeType"><enum>QSizePolicy::Expanding</enum></property>
+               <property name="sizeHint" stdset="0"><size><width>0</width><height>0</height></size></property>
+              </spacer>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="chkShowDefectBounds">
+               <property name="text"><string>Highlight defect region</string></property>
+               <property name="checked"><bool>true</bool></property>
+              </widget>
+             </item>
+            </layout>
            </item>
           </layout>
          </widget>

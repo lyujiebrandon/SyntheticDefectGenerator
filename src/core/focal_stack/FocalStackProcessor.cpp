@@ -32,8 +32,8 @@ bool FocalStackProcessor::captureStack(ICameraModule& camera,
 
         if (onProgress) {
             int pct = (i + 1) * 100 / N;
-            onProgress(pct, QString("Captured frame %1 / %2  (%.2f D)")
-                .arg(i + 1).arg(N).arg(dioptre));
+            onProgress(pct, QString("Captured frame %1 / %2  (%3 D)")
+                .arg(i + 1).arg(N).arg(dioptre, 0, 'f', 2));
         }
     }
 

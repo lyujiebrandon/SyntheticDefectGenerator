@@ -19,6 +19,7 @@ set(CMAKE_AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/src/ui)
 
 # ─── Qt6 ─────────────────────────────────────────────────────────────────────
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets Gui Concurrent)
+find_package(Qt6 OPTIONAL_COMPONENTS SerialPort)   # needed for Optotune lens control
 
 # ─── OpenCV (force vc16 runtime for pre-built binaries on VS 2022) ────────────
 set(OpenCV_ARCH x64)
@@ -44,6 +45,7 @@ set(SDG_SOURCES
 
     # Camera
     src/camera/MockCameraModule.cpp
+    src/camera/FileCameraModule.cpp
     src/camera/RealCameraModule.cpp
 
     # Core pipeline
@@ -61,6 +63,7 @@ set(SDG_HEADERS
     src/camera/ILiquidLensController.h
     src/camera/MockCameraModule.h
     src/camera/MockLiquidLensController.h
+    src/camera/FileCameraModule.h
     src/camera/RealCameraModule.h
 
     # Core pipeline
@@ -101,6 +104,19 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     ${SVS_SDK_LIB}
     # CUDA::cudart   # Phase 3
 )
+
+# ─── Qt SerialPort (optional — enables Optotune lens control) ─────────────────
+if(Qt6SerialPort_FOUND)
+    target_sources(${PROJECT_NAME} PRIVATE
+        src/camera/RealLiquidLensController.cpp
+        src/camera/RealLiquidLensController.h
+    )
+    target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::SerialPort)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE SDG_HAVE_SERIAL_PORT)
+    message(STATUS "Qt6 SerialPort found — Optotune lens control enabled")
+else()
+    message(STATUS "Qt6 SerialPort NOT found — lens will use mock control (install via Qt Maintenance Tool to enable)")
+endif()
 
 # ─── Deploy Qt DLLs (Windows Release) ────────────────────────────────────────
 if(WIN32)

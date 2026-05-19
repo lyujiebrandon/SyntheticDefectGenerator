@@ -3,6 +3,7 @@
 #include "DefectTypes.h"
 
 #include <functional>
+#include <random>
 #include <vector>
 #include <QString>
 #include <opencv2/core.hpp>
@@ -30,19 +31,28 @@ public:
                   ProgressCallback onProgress = {});
 
     bool hasOutput() const { return !m_outputImages.empty(); }
+    const std::vector<cv::Mat>&    getOutputImages() const { return m_outputImages; }
+    const std::vector<DefectType>& getOutputLabels() const { return m_outputLabels; }
+    const std::vector<cv::Rect>&   getOutputBounds() const { return m_outputBounds; }
 
     bool exportDataset(const QString& outputDir,
                        ProgressCallback onProgress = {}) const;
 
 private:
-    cv::Mat applyDefect(const cv::Mat& depthMap, DefectType type,
-                        float severity, float scale) const;
+    // Returns the defected image AND its bounding rect in one call
+    std::pair<cv::Mat, cv::Rect> applyDefect(const cv::Mat& depthMap, DefectType type,
+                                              float severity, float scale) const;
 
-    cv::Mat applyScratch(const cv::Mat& src, float severity, float scale) const;
-    cv::Mat applyDent(const cv::Mat& src, float severity, float scale) const;
-    cv::Mat applyCrack(const cv::Mat& src, float severity, float scale) const;
-    cv::Mat applyPit(const cv::Mat& src, float severity, float scale) const;
+    std::pair<cv::Mat, cv::Rect> applyScratch(const cv::Mat& src, float severity, float scale) const;
+    std::pair<cv::Mat, cv::Rect> applyDent   (const cv::Mat& src, float severity, float scale) const;
+    std::pair<cv::Mat, cv::Rect> applyCrack  (const cv::Mat& src, float severity, float scale) const;
+    std::pair<cv::Mat, cv::Rect> applyPit    (const cv::Mat& src, float severity, float scale) const;
 
-    std::vector<cv::Mat> m_outputImages;
-    std::vector<DefectType> m_outputLabels;
+    cv::Mat   buildProductMask(const cv::Mat& depthMap) const;
+    cv::Point samplePointInMask(std::mt19937& rng) const;
+
+    std::vector<cv::Mat>     m_outputImages;
+    std::vector<DefectType>  m_outputLabels;
+    std::vector<cv::Rect>    m_outputBounds;
+    cv::Mat                  m_productMask;
 };
