@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(SyntheticDefectGenerator
-    VERSION 0.1.0
-    DESCRIPTION "Automated 3D Synthetic Defect Generator via Depth from Focus"
+    VERSION 0.2.0
+    DESCRIPTION "Automated 3D Synthetic Defect Generator via Depth from Focus (Liquid Lens)"
     LANGUAGES CXX
 )
 
@@ -17,15 +17,18 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/src/ui)
 
-# ─── Dependencies ─────────────────────────────────────────────────────────────
-# Qt6: set Qt6_DIR or CMAKE_PREFIX_PATH to your Qt install, e.g.:
-#   -DCMAKE_PREFIX_PATH="C:/Qt/6.8.0/msvc2022_64"
+# ─── Qt6 ─────────────────────────────────────────────────────────────────────
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets Gui Concurrent)
 
-# OpenCV: force vc16 runtime so pre-built binaries work with VS 2022
+# ─── OpenCV (force vc16 runtime for pre-built binaries on VS 2022) ────────────
 set(OpenCV_ARCH x64)
 set(OpenCV_RUNTIME vc16)
 find_package(OpenCV REQUIRED)
+
+# ─── SVS-VISTEK SVCam Kit SDK ─────────────────────────────────────────────────
+set(SVS_SDK_ROOT "C:/Program Files/SVS-VISTEK GmbH/SVCam Kit/SDK")
+set(SVS_SDK_INCLUDE "${SVS_SDK_ROOT}/include")
+set(SVS_SDK_LIB     "${SVS_SDK_ROOT}/lib/SVGenSDK64.lib")
 
 # ─── CUDA (Phase 3 — uncomment when ready) ────────────────────────────────────
 # enable_language(CUDA)
@@ -35,18 +38,34 @@ find_package(OpenCV REQUIRED)
 # ─── Source Files ─────────────────────────────────────────────────────────────
 set(SDG_SOURCES
     src/main.cpp
+
+    # UI
     src/ui/MainWindow.cpp
+
+    # Camera
     src/camera/MockCameraModule.cpp
+    src/camera/RealCameraModule.cpp
+
+    # Core pipeline
     src/core/focal_stack/FocalStackProcessor.cpp
+    src/core/image_registration/ImageRegistrator.cpp
     src/core/depth_map/DepthMapReconstructor.cpp
     src/core/defect_gen/DefectGenerator.cpp
 )
 
 set(SDG_HEADERS
     src/ui/MainWindow.h
+
+    # Camera
     src/camera/ICameraModule.h
+    src/camera/ILiquidLensController.h
     src/camera/MockCameraModule.h
+    src/camera/MockLiquidLensController.h
+    src/camera/RealCameraModule.h
+
+    # Core pipeline
     src/core/focal_stack/FocalStackProcessor.h
+    src/core/image_registration/ImageRegistrator.h
     src/core/depth_map/DepthMapReconstructor.h
     src/core/defect_gen/DefectGenerator.h
     src/core/defect_gen/DefectTypes.h
@@ -55,6 +74,9 @@ set(SDG_HEADERS
 set(SDG_UI_FILES
     src/ui/MainWindow.ui
 )
+
+# ─── Suppress Windows min/max macros (conflict with OpenCV templates) ────────
+add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
 
 # ─── Executable ───────────────────────────────────────────────────────────────
 add_executable(${PROJECT_NAME}
@@ -67,6 +89,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${OpenCV_INCLUDE_DIRS}
+    ${SVS_SDK_INCLUDE}
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
@@ -75,10 +98,11 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Gui
     Qt6::Concurrent
     ${OpenCV_LIBS}
-    # CUDA::cudart        # Phase 3
+    ${SVS_SDK_LIB}
+    # CUDA::cudart   # Phase 3
 )
 
-# ─── Install Qt DLLs on Windows (Release builds) ──────────────────────────────
+# ─── Deploy Qt DLLs (Windows Release) ────────────────────────────────────────
 if(WIN32)
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         COMMAND "${Qt6_DIR}/../../../bin/windeployqt.exe"

@@ -4,24 +4,35 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QDateTime>
+#include <QPixmap>
+#include <QImage>
+
+#include <opencv2/imgproc.hpp>
 
 #include "camera/MockCameraModule.h"
+#include "camera/MockLiquidLensController.h"
 #include "core/focal_stack/FocalStackProcessor.h"
+#include "core/image_registration/ImageRegistrator.h"
 #include "core/depth_map/DepthMapReconstructor.h"
 #include "core/defect_gen/DefectGenerator.h"
+
+// Uncomment to use real hardware instead of mock:
+// #include "camera/RealCameraModule.h"
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
     , m_camera(std::make_unique<MockCameraModule>())
+    , m_lens(std::make_unique<MockLiquidLensController>())
     , m_focalProcessor(std::make_unique<FocalStackProcessor>())
+    , m_registrator(std::make_unique<ImageRegistrator>())
     , m_depthReconstructor(std::make_unique<DepthMapReconstructor>())
     , m_defectGenerator(std::make_unique<DefectGenerator>())
 {
     ui->setupUi(this);
 
-    m_statusLabel  = new QLabel("Ready", this);
-    m_progressBar  = new QProgressBar(this);
+    m_statusLabel = new QLabel("Ready", this);
+    m_progressBar = new QProgressBar(this);
     m_progressBar->setRange(0, 100);
     m_progressBar->setValue(0);
     m_progressBar->setFixedWidth(200);
@@ -32,7 +43,7 @@ MainWindow::MainWindow(QWidget* parent)
 
     setupConnections();
     updateCameraStatus(false);
-    logMessage("Application started. Camera: MockCameraModule (simulation mode).");
+    logMessage("Application started. Camera: MockCameraModule | Lens: MockLiquidLensController");
 }
 
 MainWindow::~MainWindow()
@@ -42,52 +53,58 @@ MainWindow::~MainWindow()
 
 void MainWindow::setupConnections()
 {
-    connect(ui->btnConnectCamera,   &QPushButton::clicked, this, &MainWindow::onConnectCamera);
-    connect(ui->btnStartSweep,      &QPushButton::clicked, this, &MainWindow::onStartFocalSweep);
-    connect(ui->btnReconstructDepth,&QPushButton::clicked, this, &MainWindow::onReconstructDepthMap);
-    connect(ui->btnGenerateDefects, &QPushButton::clicked, this, &MainWindow::onGenerateDefects);
-    connect(ui->btnBrowseOutput,    &QPushButton::clicked, this, &MainWindow::onBrowseOutputDir);
-    connect(ui->btnExportDataset,   &QPushButton::clicked, this, &MainWindow::onExportDataset);
+    connect(ui->btnConnectCamera,    &QPushButton::clicked, this, &MainWindow::onConnectCamera);
+    connect(ui->btnStartSweep,       &QPushButton::clicked, this, &MainWindow::onStartFocalSweep);
+    connect(ui->btnRegisterStack,    &QPushButton::clicked, this, &MainWindow::onRegisterStack);
+    connect(ui->btnReconstructDepth, &QPushButton::clicked, this, &MainWindow::onReconstructDepthMap);
+    connect(ui->btnGenerateDefects,  &QPushButton::clicked, this, &MainWindow::onGenerateDefects);
+    connect(ui->btnBrowseOutput,     &QPushButton::clicked, this, &MainWindow::onBrowseOutputDir);
+    connect(ui->btnExportDataset,    &QPushButton::clicked, this, &MainWindow::onExportDataset);
 }
 
-// ─── Tab 1 ────────────────────────────────────────────────────────────────────
+// ─── Tab 1: Focal Capture ─────────────────────────────────────────────────────
 
 void MainWindow::onConnectCamera()
 {
-    if (m_camera->connect()) {
+    bool camOk  = m_camera->connect();
+    bool lensOk = m_lens->connect();
+
+    if (camOk && lensOk) {
         updateCameraStatus(true);
-        logMessage(QString("Camera connected: %1").arg(m_camera->deviceName()));
+        logMessage(QString("Connected — Camera: %1 | Lens: %2")
+            .arg(m_camera->deviceName(), m_lens->deviceName()));
     } else {
-        logMessage("ERROR: Failed to connect to camera.");
-        QMessageBox::critical(this, "Camera Error", "Could not connect to camera.");
+        logMessage("ERROR: Failed to connect camera or lens.");
+        QMessageBox::critical(this, "Connection Error",
+            "Could not connect to camera or liquid lens controller.");
     }
 }
 
 void MainWindow::onStartFocalSweep()
 {
     if (!m_camera->isConnected()) {
-        QMessageBox::warning(this, "No Camera", "Connect a camera first.");
+        QMessageBox::warning(this, "Not Connected", "Connect camera and lens first.");
         return;
     }
 
     FocalStackProcessor::SweepParams params;
-    params.startFocus  = ui->spinFocusStart->value();
-    params.endFocus    = ui->spinFocusEnd->value();
-    params.stepSize    = ui->spinFocusStep->value();
-    params.imageCount  = ui->spinImageCount->value();
+    params.startDioptre = ui->spinDioptreStart->value();
+    params.endDioptre   = ui->spinDioptreEnd->value();
+    params.imageCount   = ui->spinImageCount->value();
 
-    logMessage(QString("Starting focal sweep: %1 images, focus %2→%3")
-        .arg(params.imageCount)
-        .arg(params.startFocus)
-        .arg(params.endFocus));
+    logMessage(QString("Starting focal sweep: %1 frames, %.2f D → %.2f D")
+        .arg(params.imageCount).arg(params.startDioptre).arg(params.endDioptre));
 
     setControlsEnabled(false);
     m_progressBar->setVisible(true);
 
-    bool ok = m_focalProcessor->captureStack(*m_camera, params,
+    bool ok = m_focalProcessor->captureStack(*m_camera, *m_lens, params,
         [this](int pct, const QString& msg){ onOperationProgress(pct, msg); });
 
     if (ok) {
+        // Show the middle frame as preview
+        const auto& stack = m_focalProcessor->getStack();
+        showMatInLabel(ui->lblCapturePreview, stack[stack.size() / 2]);
         onOperationComplete(QString("Focal stack captured: %1 frames.").arg(params.imageCount));
         ui->tabWidget->setTabEnabled(1, true);
     } else {
@@ -95,34 +112,71 @@ void MainWindow::onStartFocalSweep()
     }
 }
 
-// ─── Tab 2 ────────────────────────────────────────────────────────────────────
+// ─── Tab 2: Image Registration ───────────────────────────────────────────────
 
-void MainWindow::onReconstructDepthMap()
+void MainWindow::onRegisterStack()
 {
     if (!m_focalProcessor->hasStack()) {
         QMessageBox::warning(this, "No Stack", "Capture a focal stack first.");
         return;
     }
 
-    logMessage("Reconstructing depth map from focal stack...");
+    ImageRegistrator::Params params;
+    params.motionModel    = ui->comboMotionModel->currentIndex() == 0
+                            ? ImageRegistrator::MotionModel::Euclidean
+                            : ImageRegistrator::MotionModel::Affine;
+    params.eccIterations  = ui->spinEccIterations->value();
+    params.eccEpsilon     = ui->spinEccEpsilon->value();
+
+    logMessage(QString("Registering %1 frames using ECC (%2)...")
+        .arg(m_focalProcessor->getStack().size())
+        .arg(params.motionModel == ImageRegistrator::MotionModel::Affine ? "Affine" : "Euclidean"));
+
     setControlsEnabled(false);
     m_progressBar->setVisible(true);
 
+    bool ok = m_registrator->registerStack(m_focalProcessor->getStack(), params,
+        [this](int pct, const QString& msg){ onOperationProgress(pct, msg); });
+
+    if (ok) {
+        const auto& stack = m_focalProcessor->getStack();
+        showMatInLabel(ui->lblRegistrationPreview, stack[stack.size() / 2]);
+        onOperationComplete("Image registration complete — focus breathing corrected.");
+        ui->tabWidget->setTabEnabled(2, true);
+    } else {
+        onOperationError("Image registration failed.");
+    }
+}
+
+// ─── Tab 3: Depth Reconstruction ─────────────────────────────────────────────
+
+void MainWindow::onReconstructDepthMap()
+{
+    if (!m_focalProcessor->hasStack()) {
+        QMessageBox::warning(this, "No Stack", "Complete registration first.");
+        return;
+    }
+
     DepthMapReconstructor::Params params;
     params.kernelSize = ui->spinLaplacianKernel->value();
+
+    logMessage("Reconstructing depth map...");
+    setControlsEnabled(false);
+    m_progressBar->setVisible(true);
 
     bool ok = m_depthReconstructor->reconstruct(m_focalProcessor->getStack(), params,
         [this](int pct, const QString& msg){ onOperationProgress(pct, msg); });
 
     if (ok) {
+        showMatInLabel(ui->lblDepthPreview, m_depthReconstructor->getDepthMap());
         onOperationComplete("Depth map reconstruction complete.");
-        ui->tabWidget->setTabEnabled(2, true);
+        ui->tabWidget->setTabEnabled(3, true);
     } else {
         onOperationError("Depth reconstruction failed.");
     }
 }
 
-// ─── Tab 3 ────────────────────────────────────────────────────────────────────
+// ─── Tab 4: Defect Generation ─────────────────────────────────────────────────
 
 void MainWindow::onGenerateDefects()
 {
@@ -132,18 +186,15 @@ void MainWindow::onGenerateDefects()
     }
 
     DefectGenerator::Params params;
-    params.defectCount  = ui->spinDefectCount->value();
-    params.severity     = ui->sliderSeverity->value() / 100.0f;
-    params.scaleFactor  = ui->spinDefectScale->value();
+    params.defectCount   = ui->spinDefectCount->value();
+    params.severity      = ui->sliderSeverity->value() / 100.0f;
+    params.scaleFactor   = ui->spinDefectScale->value();
     params.enableScratch = ui->chkScratch->isChecked();
     params.enableDent    = ui->chkDent->isChecked();
     params.enableCrack   = ui->chkCrack->isChecked();
     params.enablePit     = ui->chkPit->isChecked();
 
-    logMessage(QString("Generating %1 synthetic defects (severity: %2)...")
-        .arg(params.defectCount)
-        .arg(params.severity, 0, 'f', 2));
-
+    logMessage(QString("Generating %1 synthetic defects...").arg(params.defectCount));
     setControlsEnabled(false);
     m_progressBar->setVisible(true);
 
@@ -151,14 +202,14 @@ void MainWindow::onGenerateDefects()
         [this](int pct, const QString& msg){ onOperationProgress(pct, msg); });
 
     if (ok) {
-        onOperationComplete(QString("Generated %1 defect variants.").arg(params.defectCount));
-        ui->tabWidget->setTabEnabled(3, true);
+        onOperationComplete(QString("Generated %1 defect images.").arg(params.defectCount));
+        ui->tabWidget->setTabEnabled(4, true);
     } else {
         onOperationError("Defect generation failed.");
     }
 }
 
-// ─── Tab 4 ────────────────────────────────────────────────────────────────────
+// ─── Tab 5: Dataset Export ────────────────────────────────────────────────────
 
 void MainWindow::onBrowseOutputDir()
 {
@@ -175,7 +226,6 @@ void MainWindow::onExportDataset()
         QMessageBox::warning(this, "No Output Dir", "Select an output directory first.");
         return;
     }
-
     if (!m_defectGenerator->hasOutput()) {
         QMessageBox::warning(this, "No Data", "Generate defects first.");
         return;
@@ -188,10 +238,8 @@ void MainWindow::onExportDataset()
     bool ok = m_defectGenerator->exportDataset(outDir,
         [this](int pct, const QString& msg){ onOperationProgress(pct, msg); });
 
-    if (ok)
-        onOperationComplete("Dataset export complete.");
-    else
-        onOperationError("Export failed.");
+    if (ok) onOperationComplete("Dataset export complete.");
+    else    onOperationError("Export failed.");
 }
 
 // ─── Shared helpers ────────────────────────────────────────────────────────────
@@ -237,13 +285,39 @@ void MainWindow::setControlsEnabled(bool enabled)
 {
     ui->btnConnectCamera->setEnabled(enabled);
     ui->btnStartSweep->setEnabled(enabled && m_camera->isConnected());
+    ui->btnRegisterStack->setEnabled(enabled);
     ui->btnReconstructDepth->setEnabled(enabled);
     ui->btnGenerateDefects->setEnabled(enabled);
     ui->btnExportDataset->setEnabled(enabled);
 }
 
+void MainWindow::showMatInLabel(QLabel* label, const cv::Mat& mat)
+{
+    if (mat.empty()) return;
+
+    cv::Mat display;
+    if (mat.type() == CV_32F) {
+        cv::Mat norm;
+        cv::normalize(mat, norm, 0, 255, cv::NORM_MINMAX);
+        norm.convertTo(display, CV_8U);
+        cv::applyColorMap(display, display, cv::COLORMAP_JET);
+    } else {
+        mat.copyTo(display);
+    }
+
+    if (display.channels() == 1)
+        cv::cvtColor(display, display, cv::COLOR_GRAY2RGB);
+
+    QImage img(display.data, display.cols, display.rows,
+               static_cast<int>(display.step),
+               QImage::Format_RGB888);
+
+    label->setPixmap(QPixmap::fromImage(img).scaled(
+        label->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+}
+
 void MainWindow::logMessage(const QString& message)
 {
-    QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss");
-    ui->textLog->appendPlainText(QString("[%1] %2").arg(timestamp, message));
+    QString ts = QDateTime::currentDateTime().toString("hh:mm:ss");
+    ui->textLog->appendPlainText(QString("[%1] %2").arg(ts, message));
 }

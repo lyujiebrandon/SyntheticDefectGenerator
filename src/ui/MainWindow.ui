@@ -2,32 +2,25 @@
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
-  <property name="geometry">
-   <rect><x>0</x><y>0</y><width>1280</width><height>820</height></rect>
-  </property>
-  <property name="windowTitle">
-   <string>Synthetic Defect Generator — JM Vistec System</string>
-  </property>
+  <property name="geometry"><rect><x>0</x><y>0</y><width>1280</width><height>860</height></rect></property>
+  <property name="windowTitle"><string>Synthetic Defect Generator — JM Vistec System</string></property>
   <widget class="QWidget" name="centralWidget">
-   <layout class="QVBoxLayout" name="mainLayout" stretch="0">
+   <layout class="QVBoxLayout" name="mainLayout">
     <property name="margin"><number>8</number></property>
     <item>
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex"><number>0</number></property>
 
-      <!-- ═══════════════════════════════════════════════════════ TAB 1 -->
+      <!-- ══════════════════════════════════════════ TAB 1: Focal Capture -->
       <widget class="QWidget" name="tabCapture">
        <attribute name="title"><string>1 · Focal Capture</string></attribute>
        <layout class="QHBoxLayout">
-        <!-- LEFT: config panel -->
         <item>
          <widget class="QGroupBox" name="grpCamera">
-          <property name="title"><string>Camera Configuration</string></property>
-          <property name="maximumWidth"><number>360</number></property>
+          <property name="title"><string>Camera &amp; Lens Configuration</string></property>
+          <property name="maximumWidth"><number>380</number></property>
           <layout class="QVBoxLayout">
-           <item>
-            <widget class="QLabel"><property name="text"><string>Camera Status:</string></property></widget>
-           </item>
+           <item><widget class="QLabel"><property name="text"><string>Camera Status:</string></property></widget></item>
            <item>
             <widget class="QLabel" name="lblCameraStatus">
              <property name="text"><string>Disconnected</string></property>
@@ -36,40 +29,34 @@
            </item>
            <item>
             <widget class="QPushButton" name="btnConnectCamera">
-             <property name="text"><string>Connect Camera</string></property>
+             <property name="text"><string>Connect Camera &amp; Lens</string></property>
             </widget>
            </item>
            <item><widget class="QFrame"><property name="frameShape"><enum>QFrame::HLine</enum></property></widget></item>
            <item>
-            <widget class="QGroupBox" name="grpSweep">
-             <property name="title"><string>Focal Sweep Parameters</string></property>
+            <widget class="QGroupBox">
+             <property name="title"><string>Liquid Lens Focal Sweep</string></property>
              <layout class="QFormLayout">
-              <item row="0" column="0"><widget class="QLabel"><property name="text"><string>Start Focus:</string></property></widget></item>
+              <item row="0" column="0"><widget class="QLabel"><property name="text"><string>Start (Dioptre):</string></property></widget></item>
               <item row="0" column="1">
-               <widget class="QDoubleSpinBox" name="spinFocusStart">
-                <property name="minimum"><double>0.0</double></property>
-                <property name="maximum"><double>1000.0</double></property>
-                <property name="value"><double>0.0</double></property>
+               <widget class="QDoubleSpinBox" name="spinDioptreStart">
+                <property name="minimum"><double>-5.0</double></property>
+                <property name="maximum"><double>5.0</double></property>
+                <property name="singleStep"><double>0.1</double></property>
+                <property name="value"><double>-2.0</double></property>
                </widget>
               </item>
-              <item row="1" column="0"><widget class="QLabel"><property name="text"><string>End Focus:</string></property></widget></item>
+              <item row="1" column="0"><widget class="QLabel"><property name="text"><string>End (Dioptre):</string></property></widget></item>
               <item row="1" column="1">
-               <widget class="QDoubleSpinBox" name="spinFocusEnd">
-                <property name="minimum"><double>0.0</double></property>
-                <property name="maximum"><double>1000.0</double></property>
-                <property name="value"><double>100.0</double></property>
+               <widget class="QDoubleSpinBox" name="spinDioptreEnd">
+                <property name="minimum"><double>-5.0</double></property>
+                <property name="maximum"><double>5.0</double></property>
+                <property name="singleStep"><double>0.1</double></property>
+                <property name="value"><double>2.0</double></property>
                </widget>
               </item>
-              <item row="2" column="0"><widget class="QLabel"><property name="text"><string>Step Size:</string></property></widget></item>
+              <item row="2" column="0"><widget class="QLabel"><property name="text"><string>Image Count:</string></property></widget></item>
               <item row="2" column="1">
-               <widget class="QDoubleSpinBox" name="spinFocusStep">
-                <property name="minimum"><double>0.1</double></property>
-                <property name="maximum"><double>50.0</double></property>
-                <property name="value"><double>5.0</double></property>
-               </widget>
-              </item>
-              <item row="3" column="0"><widget class="QLabel"><property name="text"><string>Image Count:</string></property></widget></item>
-              <item row="3" column="1">
                <widget class="QSpinBox" name="spinImageCount">
                 <property name="minimum"><number>3</number></property>
                 <property name="maximum"><number>200</number></property>
@@ -89,10 +76,9 @@
           </layout>
          </widget>
         </item>
-        <!-- RIGHT: image preview -->
         <item>
          <widget class="QGroupBox" name="grpCapturePreview">
-          <property name="title"><string>Live Preview</string></property>
+          <property name="title"><string>Live Preview (middle frame)</string></property>
           <layout class="QVBoxLayout">
            <item>
             <widget class="QLabel" name="lblCapturePreview">
@@ -107,14 +93,89 @@
        </layout>
       </widget>
 
-      <!-- ═══════════════════════════════════════════════════════ TAB 2 -->
+      <!-- ══════════════════════════════════════ TAB 2: Image Registration -->
+      <widget class="QWidget" name="tabRegistration">
+       <attribute name="title"><string>2 · Image Registration</string></attribute>
+       <layout class="QHBoxLayout">
+        <item>
+         <widget class="QGroupBox" name="grpRegConfig">
+          <property name="title"><string>ECC Registration Parameters</string></property>
+          <property name="maximumWidth"><number>380</number></property>
+          <layout class="QVBoxLayout">
+           <item>
+            <widget class="QLabel">
+             <property name="text"><string>Corrects liquid lens focus breathing\n(magnification shift between frames).</string></property>
+             <property name="wordWrap"><bool>true</bool></property>
+             <property name="styleSheet"><string>color: #888; font-style: italic;</string></property>
+            </widget>
+           </item>
+           <item><widget class="QFrame"><property name="frameShape"><enum>QFrame::HLine</enum></property></widget></item>
+           <item>
+            <widget class="QGroupBox">
+             <property name="title"><string>Algorithm Settings</string></property>
+             <layout class="QFormLayout">
+              <item row="0" column="0"><widget class="QLabel"><property name="text"><string>Motion Model:</string></property></widget></item>
+              <item row="0" column="1">
+               <widget class="QComboBox" name="comboMotionModel">
+                <item><property name="text"><string>Euclidean (fast)</string></property></item>
+                <item><property name="text"><string>Affine (handles scale)</string></property></item>
+               </widget>
+              </item>
+              <item row="1" column="0"><widget class="QLabel"><property name="text"><string>Max Iterations:</string></property></widget></item>
+              <item row="1" column="1">
+               <widget class="QSpinBox" name="spinEccIterations">
+                <property name="minimum"><number>10</number></property>
+                <property name="maximum"><number>200</number></property>
+                <property name="value"><number>50</number></property>
+               </widget>
+              </item>
+              <item row="2" column="0"><widget class="QLabel"><property name="text"><string>Epsilon:</string></property></widget></item>
+              <item row="2" column="1">
+               <widget class="QDoubleSpinBox" name="spinEccEpsilon">
+                <property name="minimum"><double>0.0001</double></property>
+                <property name="maximum"><double>0.1</double></property>
+                <property name="singleStep"><double>0.001</double></property>
+                <property name="decimals"><number>4</number></property>
+                <property name="value"><double>0.001</double></property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="btnRegisterStack">
+             <property name="text"><string>Register Stack (Correct Breathing)</string></property>
+            </widget>
+           </item>
+           <item><spacer><property name="orientation"><enum>Qt::Vertical</enum></property></spacer></item>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QGroupBox" name="grpRegistrationPreview">
+          <property name="title"><string>Registered Frame Preview</string></property>
+          <layout class="QVBoxLayout">
+           <item>
+            <widget class="QLabel" name="lblRegistrationPreview">
+             <property name="text"><string>Registered frames will appear here</string></property>
+             <property name="alignment"><set>Qt::AlignCenter</set></property>
+             <property name="styleSheet"><string>background: #1a1a1a; color: #666; border: 1px solid #444;</string></property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+
+      <!-- ══════════════════════════════════════ TAB 3: Depth Reconstruction -->
       <widget class="QWidget" name="tabDepth">
-       <attribute name="title"><string>2 · Depth Reconstruction</string></attribute>
+       <attribute name="title"><string>3 · Depth Reconstruction</string></attribute>
        <layout class="QHBoxLayout">
         <item>
          <widget class="QGroupBox" name="grpDepthConfig">
           <property name="title"><string>Reconstruction Parameters</string></property>
-          <property name="maximumWidth"><number>360</number></property>
+          <property name="maximumWidth"><number>380</number></property>
           <layout class="QVBoxLayout">
            <item>
             <widget class="QGroupBox">
@@ -151,7 +212,7 @@
         </item>
         <item>
          <widget class="QGroupBox" name="grpDepthPreview">
-          <property name="title"><string>Depth Map Preview</string></property>
+          <property name="title"><string>Depth Map Preview (Jet colormap)</string></property>
           <layout class="QVBoxLayout">
            <item>
             <widget class="QLabel" name="lblDepthPreview">
@@ -166,16 +227,15 @@
        </layout>
       </widget>
 
-      <!-- ═══════════════════════════════════════════════════════ TAB 3 -->
+      <!-- ══════════════════════════════════════ TAB 4: Defect Generation -->
       <widget class="QWidget" name="tabDefects">
-       <attribute name="title"><string>3 · Defect Generation</string></attribute>
+       <attribute name="title"><string>4 · Defect Generation</string></attribute>
        <layout class="QHBoxLayout">
         <item>
          <widget class="QGroupBox" name="grpDefectConfig">
           <property name="title"><string>Defect Parameters</string></property>
-          <property name="maximumWidth"><number>360</number></property>
+          <property name="maximumWidth"><number>380</number></property>
           <layout class="QVBoxLayout">
-           <!-- Defect type checkboxes -->
            <item>
             <widget class="QGroupBox">
              <property name="title"><string>Defect Types</string></property>
@@ -187,7 +247,6 @@
              </layout>
             </widget>
            </item>
-           <!-- Defect parameters -->
            <item>
             <widget class="QGroupBox">
              <property name="title"><string>Generation Settings</string></property>
@@ -246,12 +305,12 @@
        </layout>
       </widget>
 
-      <!-- ═══════════════════════════════════════════════════════ TAB 4 -->
+      <!-- ══════════════════════════════════════ TAB 5: Dataset Export -->
       <widget class="QWidget" name="tabExport">
-       <attribute name="title"><string>4 · Dataset Export</string></attribute>
+       <attribute name="title"><string>5 · Dataset Export</string></attribute>
        <layout class="QVBoxLayout">
         <item>
-         <widget class="QGroupBox" name="grpExportConfig">
+         <widget class="QGroupBox">
           <property name="title"><string>Export Configuration</string></property>
           <layout class="QFormLayout">
            <item row="0" column="0"><widget class="QLabel"><property name="text"><string>Output Directory:</string></property></widget></item>
@@ -291,7 +350,7 @@
      </widget><!-- end tabWidget -->
     </item>
 
-    <!-- ─── Activity Log ─────────────────────────────────────────────── -->
+    <!-- Activity Log -->
     <item>
      <widget class="QGroupBox" name="grpLog">
       <property name="title"><string>Activity Log</string></property>
@@ -306,11 +365,9 @@
       </layout>
      </widget>
     </item>
-
    </layout>
-  </widget><!-- end centralWidget -->
+  </widget>
 
-  <!-- Menu Bar -->
   <widget class="QMenuBar" name="menubar">
    <widget class="QMenu" name="menuFile">
     <property name="title"><string>File</string></property>
@@ -323,11 +380,7 @@
    <addaction name="menuFile"/>
    <addaction name="menuHelp"/>
   </widget>
-
-  <!-- Status Bar -->
   <widget class="QStatusBar" name="statusbar"/>
-
-  <!-- Actions -->
   <action name="actionExit">
    <property name="text"><string>Exit</string></property>
    <property name="shortcut"><string>Ctrl+Q</string></property>
@@ -335,14 +388,13 @@
   <action name="actionAbout">
    <property name="text"><string>About</string></property>
   </action>
-
  </widget>
  <resources/>
  <connections>
   <connection>
    <sender>actionExit</sender><signal>triggered()</signal>
    <receiver>MainWindow</receiver><slot>close()</slot>
-   <hints><hint type="sourcelabel"><x>-1</x><y>-1</y></hint><hint type="destinationlabel"><x>640</x><y>400</y></hint></hints>
+   <hints><hint type="sourcelabel"><x>-1</x><y>-1</y></hint><hint type="destinationlabel"><x>640</x><y>430</y></hint></hints>
   </connection>
  </connections>
 </ui>

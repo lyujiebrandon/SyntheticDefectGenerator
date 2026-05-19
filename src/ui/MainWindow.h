@@ -4,15 +4,18 @@
 #include <QLabel>
 #include <QProgressBar>
 #include <memory>
+#include <opencv2/core.hpp>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
 class FocalStackProcessor;
+class ImageRegistrator;
 class DepthMapReconstructor;
 class DefectGenerator;
 class ICameraModule;
+class ILiquidLensController;
 
 class MainWindow : public QMainWindow
 {
@@ -27,13 +30,16 @@ private slots:
     void onConnectCamera();
     void onStartFocalSweep();
 
-    // Tab 2 — Depth Reconstruction
+    // Tab 2 — Image Registration
+    void onRegisterStack();
+
+    // Tab 3 — Depth Reconstruction
     void onReconstructDepthMap();
 
-    // Tab 3 — Defect Generation
+    // Tab 4 — Defect Generation
     void onGenerateDefects();
 
-    // Tab 4 — Dataset Export
+    // Tab 5 — Dataset Export
     void onBrowseOutputDir();
     void onExportDataset();
 
@@ -46,14 +52,17 @@ private:
     void setupConnections();
     void updateCameraStatus(bool connected);
     void setControlsEnabled(bool enabled);
+    void showMatInLabel(QLabel* label, const cv::Mat& mat);
     void logMessage(const QString& message);
 
     Ui::MainWindow* ui;
 
-    std::unique_ptr<ICameraModule>       m_camera;
-    std::unique_ptr<FocalStackProcessor> m_focalProcessor;
+    std::unique_ptr<ICameraModule>        m_camera;
+    std::unique_ptr<ILiquidLensController> m_lens;
+    std::unique_ptr<FocalStackProcessor>  m_focalProcessor;
+    std::unique_ptr<ImageRegistrator>     m_registrator;
     std::unique_ptr<DepthMapReconstructor> m_depthReconstructor;
-    std::unique_ptr<DefectGenerator>     m_defectGenerator;
+    std::unique_ptr<DefectGenerator>      m_defectGenerator;
 
     QLabel*       m_statusLabel;
     QProgressBar* m_progressBar;

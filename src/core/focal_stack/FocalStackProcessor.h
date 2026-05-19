@@ -6,27 +6,29 @@
 #include <opencv2/core.hpp>
 
 class ICameraModule;
+class ILiquidLensController;
 
-// Drives the camera through a focal sweep and assembles the image stack.
-// The stack is stored in memory for the DepthMapReconstructor to consume.
+// Drives the liquid lens through a dioptre sweep, triggering one camera
+// frame per step. Stores the raw focal stack for the ImageRegistrator.
 class FocalStackProcessor
 {
 public:
     struct SweepParams {
-        double startFocus  = 0.0;
-        double endFocus    = 100.0;
-        double stepSize    = 5.0;
-        int    imageCount  = 20;
+        double startDioptre = -2.0;
+        double endDioptre   =  2.0;
+        int    imageCount   = 20;
     };
 
     using ProgressCallback = std::function<void(int percent, const QString& message)>;
 
     bool captureStack(ICameraModule& camera,
+                      ILiquidLensController& lens,
                       const SweepParams& params,
                       ProgressCallback onProgress = {});
 
     bool hasStack() const { return !m_stack.empty(); }
     const std::vector<cv::Mat>& getStack() const { return m_stack; }
+    std::vector<cv::Mat>&       getStack()        { return m_stack; }
     void clearStack() { m_stack.clear(); }
 
 private:

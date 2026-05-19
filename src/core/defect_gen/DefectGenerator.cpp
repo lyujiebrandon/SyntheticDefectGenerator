@@ -108,10 +108,10 @@ cv::Mat DefectGenerator::applyScratch(const cv::Mat& src, float severity, float 
     int y2 = std::uniform_int_distribution<>(0, src.rows)(rng);
 
     int thickness = std::max(1, static_cast<int>(scale));
-    float depth   = -severity * 50.0f;  // depress the surface along the scratch
+    float depth   = -severity * 50.0f;
 
     cv::Mat mask = cv::Mat::zeros(src.size(), CV_8U);
-    cv::line(mask, {x1, y1}, {x2, y2}, cv::Scalar(255), thickness);
+    cv::line(mask, cv::Point(x1, y1), cv::Point(x2, y2), cv::Scalar(255), thickness);
 
     result.setTo(cv::Scalar(depth), mask);
     return result;
@@ -159,7 +159,7 @@ cv::Mat DefectGenerator::applyCrack(const cv::Mat& src, float severity, float sc
         int ny = std::clamp(y + dy, 0, src.rows - 1);
 
         cv::Mat mask = cv::Mat::zeros(src.size(), CV_8U);
-        cv::line(mask, {x, y}, {nx, ny}, cv::Scalar(255), 1);
+        cv::line(mask, cv::Point(x, y), cv::Point(nx, ny), cv::Scalar(255), 1);
         result.setTo(cv::Scalar(-severity * 60.0f), mask);
 
         x = nx; y = ny;
@@ -176,6 +176,6 @@ cv::Mat DefectGenerator::applyPit(const cv::Mat& src, float severity, float scal
     int cy = std::uniform_int_distribution<>(0, src.rows)(rng);
     int r  = std::max(2, static_cast<int>(6 * scale));
 
-    cv::circle(result, {cx, cy}, r, cv::Scalar(-severity * 80.0f), -1);
+    cv::circle(result, cv::Point(cx, cy), r, cv::Scalar(-severity * 80.0f), -1);
     return result;
 }

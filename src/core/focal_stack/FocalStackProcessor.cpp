@@ -1,32 +1,39 @@
 #include "FocalStackProcessor.h"
+
 #include "camera/ICameraModule.h"
+#include "camera/ILiquidLensController.h"
+#include "camera/MockCameraModule.h"
 
 bool FocalStackProcessor::captureStack(ICameraModule& camera,
+                                        ILiquidLensController& lens,
                                         const SweepParams& params,
                                         ProgressCallback onProgress)
 {
     m_stack.clear();
 
-    int totalSteps = params.imageCount;
-    double focusRange = params.endFocus - params.startFocus;
-    double stepSize   = (totalSteps > 1) ? focusRange / (totalSteps - 1) : 0.0;
+    int N = params.imageCount;
+    double dioptreRange = params.endDioptre - params.startDioptre;
+    double step = (N > 1) ? dioptreRange / (N - 1) : 0.0;
 
-    for (int i = 0; i < totalSteps; ++i) {
-        double focusPos = params.startFocus + i * stepSize;
+    // Keep a pointer to MockCameraModule if we're in simulation mode
+    // so we can synchronise its internal dioptre state.
+    auto* mockCam = dynamic_cast<MockCameraModule*>(&camera);
 
-        if (!camera.setFocusPosition(focusPos))
-            return false;
+    for (int i = 0; i < N; ++i) {
+        double dioptre = params.startDioptre + i * step;
+
+        lens.setDioptre(dioptre);
+        if (mockCam) mockCam->setSimulatedDioptre(dioptre);
 
         cv::Mat frame = camera.captureFrame();
-        if (frame.empty())
-            return false;
+        if (frame.empty()) return false;
 
         m_stack.push_back(std::move(frame));
 
         if (onProgress) {
-            int pct = static_cast<int>((i + 1) * 100 / totalSteps);
-            onProgress(pct, QString("Captured frame %1 / %2 (focus = %3)")
-                .arg(i + 1).arg(totalSteps).arg(focusPos, 0, 'f', 1));
+            int pct = (i + 1) * 100 / N;
+            onProgress(pct, QString("Captured frame %1 / %2  (%.2f D)")
+                .arg(i + 1).arg(N).arg(dioptre));
         }
     }
 
