@@ -9,8 +9,8 @@
             "binaryDir": "${sourceDir}/build/debug",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
-                "CMAKE_PREFIX_PATH": "C:/Qt/6.8.0/msvc2022_64",
-                "OpenCV_DIR": "C:/opencv/build"
+                "CMAKE_PREFIX_PATH": "D:/Qt6/6.11.1/msvc2022_64",
+                "OpenCV_DIR": "D:/Brandon/opencv/build"
             }
         },
         {
@@ -21,8 +21,8 @@
             "binaryDir": "${sourceDir}/build/release",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
-                "CMAKE_PREFIX_PATH": "C:/Qt/6.8.0/msvc2022_64",
-                "OpenCV_DIR": "C:/opencv/build"
+                "CMAKE_PREFIX_PATH": "D:/Qt6/6.11.1/msvc2022_64",
+                "OpenCV_DIR": "D:/Brandon/opencv/build"
             }
         }
     ]
