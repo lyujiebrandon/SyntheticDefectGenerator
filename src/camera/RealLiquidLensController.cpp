@@ -20,8 +20,9 @@ bool RealLiquidLensController::connect()
     if (m_serial.isOpen()) return true;
 
     if (!m_serial.open(QIODevice::ReadWrite)) {
+        m_lastError = m_serial.errorString();
         qWarning() << "RealLiquidLensController: Cannot open" << m_portName
-                   << "—" << m_serial.errorString();
+                   << "—" << m_lastError;
         return false;
     }
 

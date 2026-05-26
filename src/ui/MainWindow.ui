@@ -16,140 +16,51 @@
        <attribute name="title"><string>1 · Focal Capture</string></attribute>
        <layout class="QHBoxLayout">
         <item>
-         <widget class="QGroupBox" name="grpCamera">
-          <property name="title"><string>Camera &amp; Lens Configuration</string></property>
+         <widget class="QGroupBox" name="grpStackInput">
+          <property name="title"><string>Focal Stack Input</string></property>
           <property name="maximumWidth"><number>380</number></property>
           <layout class="QVBoxLayout">
-           <!-- Camera Source selector -->
            <item>
-            <widget class="QGroupBox" name="grpCameraSource">
-             <property name="title"><string>Camera Source</string></property>
-             <layout class="QVBoxLayout">
-              <item>
-               <widget class="QRadioButton" name="radioMockSynthetic">
-                <property name="text"><string>Mock — Synthetic (no hardware needed)</string></property>
-                <property name="checked"><bool>true</bool></property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QRadioButton" name="radioMockImages">
-                <property name="text"><string>Mock — Image Folder (pre-captured stack)</string></property>
-               </widget>
-              </item>
-              <item>
-               <layout class="QHBoxLayout">
-                <item>
-                 <spacer>
-                  <property name="orientation"><enum>Qt::Horizontal</enum></property>
-                  <property name="sizeType"><enum>QSizePolicy::Fixed</enum></property>
-                  <property name="sizeHint" stdset="0"><size><width>18</width><height>0</height></size></property>
-                 </spacer>
-                </item>
-                <item>
-                 <widget class="QLineEdit" name="lineImageFolder">
-                  <property name="placeholderText"><string>Select folder of focal stack images…</string></property>
-                  <property name="enabled"><bool>false</bool></property>
-                  <property name="readOnly"><bool>true</bool></property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QPushButton" name="btnBrowseImageFolder">
-                  <property name="text"><string>Browse</string></property>
-                  <property name="enabled"><bool>false</bool></property>
-                  <property name="maximumWidth"><number>70</number></property>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <widget class="QRadioButton" name="radioRealCamera">
-                <property name="text"><string>Real Camera (SVS-VISTEK GigE)</string></property>
-               </widget>
-              </item>
-              <item>
-               <layout class="QHBoxLayout">
-                <item>
-                 <spacer>
-                  <property name="orientation"><enum>Qt::Horizontal</enum></property>
-                  <property name="sizeType"><enum>QSizePolicy::Fixed</enum></property>
-                  <property name="sizeHint" stdset="0"><size><width>18</width><height>0</height></size></property>
-                 </spacer>
-                </item>
-                <item>
-                 <widget class="QLabel" name="lblComPort">
-                  <property name="text"><string>Lens COM Port:</string></property>
-                  <property name="enabled"><bool>false</bool></property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QComboBox" name="comboComPort">
-                  <property name="enabled"><bool>false</bool></property>
-                  <property name="minimumWidth"><number>90</number></property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QPushButton" name="btnRefreshPorts">
-                  <property name="text"><string>&#8635;</string></property>
-                  <property name="enabled"><bool>false</bool></property>
-                  <property name="maximumWidth"><number>28</number></property>
-                  <property name="toolTip"><string>Refresh available COM ports</string></property>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-             </layout>
-            </widget>
-           </item>
-           <item><widget class="QLabel"><property name="text"><string>Camera Status:</string></property></widget></item>
-           <item>
-            <widget class="QLabel" name="lblCameraStatus">
-             <property name="text"><string>Disconnected</string></property>
-             <property name="styleSheet"><string>color: red; font-weight: bold;</string></property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="btnConnectCamera">
-             <property name="text"><string>Connect Camera &amp; Lens</string></property>
+            <widget class="QLabel">
+             <property name="text"><string>Select a folder of images captured at different focal powers. Images are loaded in filename order — name them so they sort by focal distance (e.g. frame_01.png … frame_20.png).</string></property>
+             <property name="wordWrap"><bool>true</bool></property>
+             <property name="styleSheet"><string>color: #888; font-style: italic;</string></property>
             </widget>
            </item>
            <item><widget class="QFrame"><property name="frameShape"><enum>QFrame::HLine</enum></property></widget></item>
            <item>
-            <widget class="QGroupBox">
-             <property name="title"><string>Liquid Lens Focal Sweep</string></property>
-             <layout class="QFormLayout">
-              <item row="0" column="0"><widget class="QLabel"><property name="text"><string>Start (Dioptre):</string></property></widget></item>
-              <item row="0" column="1">
-               <widget class="QDoubleSpinBox" name="spinDioptreStart">
-                <property name="minimum"><double>-5.0</double></property>
-                <property name="maximum"><double>5.0</double></property>
-                <property name="singleStep"><double>0.1</double></property>
-                <property name="value"><double>-2.0</double></property>
-               </widget>
-              </item>
-              <item row="1" column="0"><widget class="QLabel"><property name="text"><string>End (Dioptre):</string></property></widget></item>
-              <item row="1" column="1">
-               <widget class="QDoubleSpinBox" name="spinDioptreEnd">
-                <property name="minimum"><double>-5.0</double></property>
-                <property name="maximum"><double>5.0</double></property>
-                <property name="singleStep"><double>0.1</double></property>
-                <property name="value"><double>2.0</double></property>
-               </widget>
-              </item>
-              <item row="2" column="0"><widget class="QLabel"><property name="text"><string>Image Count:</string></property></widget></item>
-              <item row="2" column="1">
-               <widget class="QSpinBox" name="spinImageCount">
-                <property name="minimum"><number>3</number></property>
-                <property name="maximum"><number>200</number></property>
-                <property name="value"><number>20</number></property>
-               </widget>
-              </item>
-             </layout>
+            <layout class="QHBoxLayout">
+             <item>
+              <widget class="QLineEdit" name="lineStackFolder">
+               <property name="placeholderText"><string>Select folder of focal stack images…</string></property>
+               <property name="readOnly"><bool>true</bool></property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="btnBrowseStack">
+               <property name="text"><string>Browse</string></property>
+               <property name="maximumWidth"><number>70</number></property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <widget class="QLabel" name="lblImageCount">
+             <property name="text"><string>No folder selected</string></property>
+             <property name="styleSheet"><string>color: #888;</string></property>
+            </widget>
+           </item>
+           <item><widget class="QFrame"><property name="frameShape"><enum>QFrame::HLine</enum></property></widget></item>
+           <item>
+            <widget class="QPushButton" name="btnLoadStack">
+             <property name="text"><string>Load Image Stack</string></property>
+             <property name="enabled"><bool>false</bool></property>
             </widget>
            </item>
            <item>
-            <widget class="QPushButton" name="btnStartSweep">
-             <property name="text"><string>Start Focal Sweep</string></property>
-             <property name="enabled"><bool>false</bool></property>
+            <widget class="QLabel" name="lblStackStatus">
+             <property name="text"><string>No stack loaded</string></property>
+             <property name="styleSheet"><string>color: #888;</string></property>
             </widget>
            </item>
            <item><spacer><property name="orientation"><enum>Qt::Vertical</enum></property></spacer></item>
@@ -158,7 +69,7 @@
         </item>
         <item>
          <widget class="QGroupBox" name="grpCapturePreview">
-          <property name="title"><string>Live Preview (middle frame)</string></property>
+          <property name="title"><string>Stack Preview (middle frame)</string></property>
           <layout class="QVBoxLayout">
            <item>
             <widget class="QLabel" name="lblCapturePreview">

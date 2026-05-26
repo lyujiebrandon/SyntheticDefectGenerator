@@ -26,6 +26,8 @@ public:
                       const SweepParams& params,
                       ProgressCallback onProgress = {});
 
+    bool loadFromFolder(const QString& folderPath, ProgressCallback onProgress = {});
+
     bool hasStack() const { return !m_stack.empty(); }
     const std::vector<cv::Mat>& getStack() const { return m_stack; }
     std::vector<cv::Mat>&       getStack()        { return m_stack; }

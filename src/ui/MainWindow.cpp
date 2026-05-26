@@ -11,14 +11,6 @@
 
 #include <opencv2/imgproc.hpp>
 
-#include "camera/MockCameraModule.h"
-#include "camera/MockLiquidLensController.h"
-#include "camera/FileCameraModule.h"
-#include "camera/RealCameraModule.h"
-#ifdef SDG_HAVE_SERIAL_PORT
-#  include "camera/RealLiquidLensController.h"
-#  include <QSerialPortInfo>
-#endif
 #include "core/focal_stack/FocalStackProcessor.h"
 #include "core/image_registration/ImageRegistrator.h"
 #include "core/depth_map/DepthMapReconstructor.h"
@@ -28,8 +20,6 @@
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
-    , m_camera(std::make_unique<MockCameraModule>())
-    , m_lens(std::make_unique<MockLiquidLensController>())
     , m_focalProcessor(std::make_unique<FocalStackProcessor>())
     , m_registrator(std::make_unique<ImageRegistrator>())
     , m_depthReconstructor(std::make_unique<DepthMapReconstructor>())
@@ -48,8 +38,7 @@ MainWindow::MainWindow(QWidget* parent)
     ui->statusbar->addPermanentWidget(m_progressBar);
 
     setupConnections();
-    updateCameraStatus(false);
-    logMessage("Application started. Camera: MockCameraModule | Lens: MockLiquidLensController");
+    logMessage("Application started. Select a folder of focal stack images to begin.");
 }
 
 MainWindow::~MainWindow()
@@ -59,15 +48,9 @@ MainWindow::~MainWindow()
 
 void MainWindow::setupConnections()
 {
-    connect(ui->btnConnectCamera,    &QPushButton::clicked, this, &MainWindow::onConnectCamera);
-    connect(ui->btnStartSweep,       &QPushButton::clicked, this, &MainWindow::onStartFocalSweep);
-    connect(ui->btnBrowseImageFolder,&QPushButton::clicked,  this, &MainWindow::onBrowseImageFolder);
-    connect(ui->btnRefreshPorts,     &QPushButton::clicked,  this, &MainWindow::onRefreshComPorts);
-    connect(ui->radioMockSynthetic,  &QRadioButton::toggled, this, &MainWindow::onCameraSourceChanged);
-    connect(ui->radioMockImages,     &QRadioButton::toggled, this, &MainWindow::onCameraSourceChanged);
-    connect(ui->radioRealCamera,     &QRadioButton::toggled, this, &MainWindow::onCameraSourceChanged);
+    connect(ui->btnBrowseStack, &QPushButton::clicked, this, &MainWindow::onBrowseStack);
+    connect(ui->btnLoadStack,   &QPushButton::clicked, this, &MainWindow::onLoadStack);
 
-    onRefreshComPorts(); // populate COM port list on startup
     connect(ui->btnRegisterStack,    &QPushButton::clicked, this, &MainWindow::onRegisterStack);
     connect(ui->btnReconstructDepth, &QPushButton::clicked, this, &MainWindow::onReconstructDepthMap);
     connect(ui->btnGenerateDefects,  &QPushButton::clicked, this, &MainWindow::onGenerateDefects);
@@ -76,139 +59,60 @@ void MainWindow::setupConnections()
     connect(ui->btnExportDataset,    &QPushButton::clicked, this, &MainWindow::onExportDataset);
 }
 
-// ─── Tab 1: Focal Capture ─────────────────────────────────────────────────────
+// ─── Tab 1: Focal Stack Input ─────────────────────────────────────────────────
 
-void MainWindow::onConnectCamera()
-{
-    // Disconnect existing session if any
-    if (m_camera && m_camera->isConnected()) m_camera->disconnect();
-    if (m_lens   && m_lens->isConnected())   m_lens->disconnect();
-
-    // Instantiate the selected camera backend
-    if (ui->radioMockSynthetic->isChecked()) {
-        m_camera = std::make_unique<MockCameraModule>();
-        m_lens   = std::make_unique<MockLiquidLensController>();
-
-    } else if (ui->radioMockImages->isChecked()) {
-        QString folder = ui->lineImageFolder->text().trimmed();
-        if (folder.isEmpty()) {
-            QMessageBox::warning(this, "No Folder Selected",
-                "Browse to a folder containing your focal stack images first.");
-            return;
-        }
-        m_camera = std::make_unique<FileCameraModule>(folder);
-        m_lens   = std::make_unique<MockLiquidLensController>();
-
-    } else {
-        // Real Camera — SVS-VISTEK GigE + Optotune EL-16-40 via Lens Driver
-        m_camera = std::make_unique<RealCameraModule>();
-#ifdef SDG_HAVE_SERIAL_PORT
-        QString port = ui->comboComPort->currentData().toString();
-        if (port.isEmpty()) {
-            QMessageBox::warning(this, "No COM Port Selected",
-                "Select the Optotune Lens Driver COM port and click Refresh if none appear.");
-            return;
-        }
-        m_lens = std::make_unique<RealLiquidLensController>(port);
-#else
-        m_lens = std::make_unique<MockLiquidLensController>();
-        logMessage("WARNING: Qt SerialPort not installed — lens sweep uses mock control only.");
-#endif
-    }
-
-    bool camOk  = m_camera->connect();
-    bool lensOk = m_lens->connect();
-
-    if (camOk && lensOk) {
-        // Sync image count to folder size when using file camera
-        if (ui->radioMockImages->isChecked()) {
-            auto* fileCam = dynamic_cast<FileCameraModule*>(m_camera.get());
-            if (fileCam && fileCam->imageCount() > 0)
-                ui->spinImageCount->setValue(fileCam->imageCount());
-        }
-        updateCameraStatus(true);
-        logMessage(QString("Connected — Camera: %1 | Lens: %2")
-            .arg(m_camera->deviceName(), m_lens->deviceName()));
-    } else {
-        updateCameraStatus(false);
-        logMessage("ERROR: Failed to connect camera or lens.");
-        QMessageBox::critical(this, "Connection Error",
-            "Could not connect to camera or liquid lens controller.\n"
-            "Check that the device is powered on and the folder path is valid.");
-    }
-}
-
-void MainWindow::onBrowseImageFolder()
+void MainWindow::onBrowseStack()
 {
     QString dir = QFileDialog::getExistingDirectory(
         this, "Select Focal Stack Image Folder",
         QDir::homePath(), QFileDialog::ShowDirsOnly);
-    if (!dir.isEmpty())
-        ui->lineImageFolder->setText(dir);
-}
+    if (dir.isEmpty()) return;
 
-void MainWindow::onCameraSourceChanged()
-{
-    bool isFileMode = ui->radioMockImages->isChecked();
-    bool isRealMode = ui->radioRealCamera->isChecked();
+    ui->lineStackFolder->setText(dir);
 
-    ui->lineImageFolder->setEnabled(isFileMode);
-    ui->btnBrowseImageFolder->setEnabled(isFileMode);
+    // Count supported images in the folder
+    const QStringList filters = {"*.png", "*.jpg", "*.jpeg", "*.bmp", "*.tiff", "*.tif"};
+    QStringList files = QDir(dir).entryList(filters, QDir::Files, QDir::Name);
+    int count = files.size();
 
-    ui->lblComPort->setEnabled(isRealMode);
-    ui->comboComPort->setEnabled(isRealMode);
-    ui->btnRefreshPorts->setEnabled(isRealMode);
-}
-
-void MainWindow::onRefreshComPorts()
-{
-    ui->comboComPort->clear();
-#ifdef SDG_HAVE_SERIAL_PORT
-    const auto ports = QSerialPortInfo::availablePorts();
-    for (const QSerialPortInfo& info : ports) {
-        QString label = info.portName();
-        if (!info.description().isEmpty())
-            label += "  —  " + info.description();
-        ui->comboComPort->addItem(label, info.portName());
+    if (count == 0) {
+        ui->lblImageCount->setText("No supported images found in this folder.");
+        ui->lblImageCount->setStyleSheet("color: #e05050;");
+        ui->btnLoadStack->setEnabled(false);
+    } else {
+        ui->lblImageCount->setText(QString("%1 image(s) found — will load in filename order.").arg(count));
+        ui->lblImageCount->setStyleSheet("color: #50c050;");
+        ui->btnLoadStack->setEnabled(true);
     }
-    if (ports.isEmpty())
-        ui->comboComPort->addItem("No COM ports found");
-#else
-    ui->comboComPort->addItem("Install Qt SerialPort module to enable");
-#endif
 }
 
-void MainWindow::onStartFocalSweep()
+void MainWindow::onLoadStack()
 {
-    if (!m_camera->isConnected()) {
-        QMessageBox::warning(this, "Not Connected", "Connect camera and lens first.");
-        return;
-    }
+    QString folder = ui->lineStackFolder->text().trimmed();
+    if (folder.isEmpty()) return;
 
-    FocalStackProcessor::SweepParams params;
-    params.startDioptre = ui->spinDioptreStart->value();
-    params.endDioptre   = ui->spinDioptreEnd->value();
-    params.imageCount   = ui->spinImageCount->value();
-
-    logMessage(QString("Starting focal sweep: %1 frames, %2 D → %3 D")
-        .arg(params.imageCount)
-        .arg(params.startDioptre, 0, 'f', 2)
-        .arg(params.endDioptre,   0, 'f', 2));
-
+    logMessage(QString("Loading focal stack from: %1").arg(folder));
     setControlsEnabled(false);
     m_progressBar->setVisible(true);
 
-    bool ok = m_focalProcessor->captureStack(*m_camera, *m_lens, params,
+    bool ok = m_focalProcessor->loadFromFolder(folder,
         [this](int pct, const QString& msg){ onOperationProgress(pct, msg); });
 
     if (ok) {
-        // Show the middle frame as preview
         const auto& stack = m_focalProcessor->getStack();
         showMatInLabel(ui->lblCapturePreview, stack[stack.size() / 2]);
-        onOperationComplete(QString("Focal stack captured: %1 frames.").arg(params.imageCount));
+
+        QString status = QString("Stack loaded: %1 frames.").arg(stack.size());
+        ui->lblStackStatus->setText(status);
+        ui->lblStackStatus->setStyleSheet("color: #50c050; font-weight: bold;");
+
+        onOperationComplete(status);
         ui->tabWidget->setTabEnabled(1, true);
     } else {
-        onOperationError("Focal sweep failed.");
+        ui->lblStackStatus->setText("Failed to load stack.");
+        ui->lblStackStatus->setStyleSheet("color: #e05050;");
+        onOperationError("Could not load images from the selected folder. "
+                         "Check that the folder contains valid image files.");
     }
 }
 
@@ -217,7 +121,7 @@ void MainWindow::onStartFocalSweep()
 void MainWindow::onRegisterStack()
 {
     if (!m_focalProcessor->hasStack()) {
-        QMessageBox::warning(this, "No Stack", "Capture a focal stack first.");
+        QMessageBox::warning(this, "No Stack", "Load a focal stack first.");
         return;
     }
 
@@ -302,15 +206,14 @@ void MainWindow::onGenerateDefects()
         [this](int pct, const QString& msg){ onOperationProgress(pct, msg); });
 
     if (ok) {
-        // Store first result for toggle re-render
         m_previewDefectImage  = m_defectGenerator->getOutputImages().front();
         m_previewDefectBounds = m_defectGenerator->getOutputBounds().front();
         const DefectType t    = m_defectGenerator->getOutputLabels().front();
         switch (t) {
-            case DefectType::Scratch:    m_previewDefectType = "Scratch";     break;
-            case DefectType::ShallowDent:m_previewDefectType = "Shallow Dent";break;
-            case DefectType::Crack:      m_previewDefectType = "Crack";       break;
-            case DefectType::SurfacePit: m_previewDefectType = "Surface Pit"; break;
+            case DefectType::Scratch:    m_previewDefectType = "Scratch";      break;
+            case DefectType::ShallowDent:m_previewDefectType = "Shallow Dent"; break;
+            case DefectType::Crack:      m_previewDefectType = "Crack";        break;
+            case DefectType::SurfacePit: m_previewDefectType = "Surface Pit";  break;
         }
         ui->lblDefectTypeTag->setText(m_previewDefectType);
         renderDefectPreview();
@@ -382,21 +285,10 @@ void MainWindow::onOperationError(const QString& error)
     QMessageBox::critical(this, "Operation Failed", error);
 }
 
-void MainWindow::updateCameraStatus(bool connected)
-{
-    ui->lblCameraStatus->setText(connected
-        ? QString("Connected: %1").arg(m_camera->deviceName())
-        : "Disconnected");
-    ui->lblCameraStatus->setStyleSheet(connected
-        ? "color: green; font-weight: bold;"
-        : "color: red;");
-    ui->btnStartSweep->setEnabled(connected);
-}
-
 void MainWindow::setControlsEnabled(bool enabled)
 {
-    ui->btnConnectCamera->setEnabled(enabled);
-    ui->btnStartSweep->setEnabled(enabled && m_camera->isConnected());
+    ui->btnBrowseStack->setEnabled(enabled);
+    ui->btnLoadStack->setEnabled(enabled && !ui->lineStackFolder->text().isEmpty());
     ui->btnRegisterStack->setEnabled(enabled);
     ui->btnReconstructDepth->setEnabled(enabled);
     ui->btnGenerateDefects->setEnabled(enabled);
@@ -432,27 +324,23 @@ void MainWindow::renderDefectPreview()
 {
     if (m_previewDefectImage.empty()) return;
 
-    // Convert depth map to 8-bit JET colourmap (same as showMatInLabel)
     cv::Mat display;
     cv::Mat norm;
     cv::normalize(m_previewDefectImage, norm, 0, 255, cv::NORM_MINMAX);
     norm.convertTo(display, CV_8U);
     cv::applyColorMap(display, display, cv::COLORMAP_JET);
 
-    // Overlay the bounding box when the toggle is on
     if (ui->chkShowDefectBounds->isChecked() && m_previewDefectBounds.area() > 0) {
-        // Bright yellow box (BGR)
         cv::rectangle(display, m_previewDefectBounds, cv::Scalar(0, 230, 255), 2);
 
-        // Small label tag above the box
         cv::Point textPos(m_previewDefectBounds.x,
                           std::max(0, m_previewDefectBounds.y - 6));
         cv::putText(display, m_previewDefectType.toStdString(),
                     textPos, cv::FONT_HERSHEY_SIMPLEX, 0.45,
-                    cv::Scalar(0, 0, 0), 3, cv::LINE_AA);          // black outline
+                    cv::Scalar(0, 0, 0), 3, cv::LINE_AA);
         cv::putText(display, m_previewDefectType.toStdString(),
                     textPos, cv::FONT_HERSHEY_SIMPLEX, 0.45,
-                    cv::Scalar(0, 230, 255), 1, cv::LINE_AA);      // yellow text
+                    cv::Scalar(0, 230, 255), 1, cv::LINE_AA);
     }
 
     QImage img(display.data, display.cols, display.rows,

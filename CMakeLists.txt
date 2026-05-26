@@ -26,10 +26,18 @@ set(OpenCV_ARCH x64)
 set(OpenCV_RUNTIME vc16)
 find_package(OpenCV REQUIRED)
 
-# ─── SVS-VISTEK SVCam Kit SDK ─────────────────────────────────────────────────
+# ─── SVS-VISTEK SVCam Kit SDK (optional) ─────────────────────────────────────
 set(SVS_SDK_ROOT "C:/Program Files/SVS-VISTEK GmbH/SVCam Kit/SDK")
 set(SVS_SDK_INCLUDE "${SVS_SDK_ROOT}/include")
 set(SVS_SDK_LIB     "${SVS_SDK_ROOT}/lib/SVGenSDK64.lib")
+
+if(EXISTS "${SVS_SDK_INCLUDE}/sv_gen_sdk.h" AND EXISTS "${SVS_SDK_LIB}")
+    set(SDG_HAVE_SVS_SDK TRUE)
+    message(STATUS "SVS-VISTEK SDK found — real camera support enabled")
+else()
+    set(SDG_HAVE_SVS_SDK FALSE)
+    message(STATUS "SVS-VISTEK SDK NOT found at ${SVS_SDK_ROOT} — real camera support disabled (install SDK to enable)")
+endif()
 
 # ─── CUDA (Phase 3 — uncomment when ready) ────────────────────────────────────
 # enable_language(CUDA)
@@ -46,7 +54,6 @@ set(SDG_SOURCES
     # Camera
     src/camera/MockCameraModule.cpp
     src/camera/FileCameraModule.cpp
-    src/camera/RealCameraModule.cpp
 
     # Core pipeline
     src/core/focal_stack/FocalStackProcessor.cpp
@@ -64,7 +71,6 @@ set(SDG_HEADERS
     src/camera/MockCameraModule.h
     src/camera/MockLiquidLensController.h
     src/camera/FileCameraModule.h
-    src/camera/RealCameraModule.h
 
     # Core pipeline
     src/core/focal_stack/FocalStackProcessor.h
@@ -77,6 +83,11 @@ set(SDG_HEADERS
 set(SDG_UI_FILES
     src/ui/MainWindow.ui
 )
+
+if(SDG_HAVE_SVS_SDK)
+    list(APPEND SDG_SOURCES src/camera/RealCameraModule.cpp)
+    list(APPEND SDG_HEADERS src/camera/RealCameraModule.h)
+endif()
 
 # ─── Suppress Windows min/max macros (conflict with OpenCV templates) ────────
 add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
@@ -92,7 +103,6 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${OpenCV_INCLUDE_DIRS}
-    ${SVS_SDK_INCLUDE}
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
@@ -101,9 +111,14 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Gui
     Qt6::Concurrent
     ${OpenCV_LIBS}
-    ${SVS_SDK_LIB}
     # CUDA::cudart   # Phase 3
 )
+
+if(SDG_HAVE_SVS_SDK)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${SVS_SDK_INCLUDE})
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${SVS_SDK_LIB})
+    target_compile_definitions(${PROJECT_NAME} PRIVATE SDG_HAVE_SVS_SDK)
+endif()
 
 # ─── Qt SerialPort (optional — enables Optotune lens control) ─────────────────
 if(Qt6SerialPort_FOUND)

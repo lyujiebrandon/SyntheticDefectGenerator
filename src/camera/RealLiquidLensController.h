@@ -22,9 +22,12 @@ public:
     double  minDioptre() const override { return -1.5; }
     double  maxDioptre() const override { return  3.5; }
 
+    QString lastError() const { return m_lastError; }
+
 private:
     bool sendPacket(const QByteArray& packet);
 
     QSerialPort m_serial;
     QString     m_portName;
+    QString     m_lastError;
 };

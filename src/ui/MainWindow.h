@@ -14,8 +14,6 @@ class FocalStackProcessor;
 class ImageRegistrator;
 class DepthMapReconstructor;
 class DefectGenerator;
-class ICameraModule;
-class ILiquidLensController;
 
 class MainWindow : public QMainWindow
 {
@@ -26,12 +24,9 @@ public:
     ~MainWindow();
 
 private slots:
-    // Tab 1 — Focal Capture
-    void onConnectCamera();
-    void onStartFocalSweep();
-    void onBrowseImageFolder();
-    void onCameraSourceChanged();
-    void onRefreshComPorts();
+    // Tab 1 — Focal Stack Input
+    void onBrowseStack();
+    void onLoadStack();
 
     // Tab 2 — Image Registration
     void onRegisterStack();
@@ -53,7 +48,6 @@ private slots:
 
 private:
     void setupConnections();
-    void updateCameraStatus(bool connected);
     void setControlsEnabled(bool enabled);
     void showMatInLabel(QLabel* label, const cv::Mat& mat);
     void logMessage(const QString& message);
@@ -67,8 +61,6 @@ private:
 
     Ui::MainWindow* ui;
 
-    std::unique_ptr<ICameraModule>        m_camera;
-    std::unique_ptr<ILiquidLensController> m_lens;
     std::unique_ptr<FocalStackProcessor>  m_focalProcessor;
     std::unique_ptr<ImageRegistrator>     m_registrator;
     std::unique_ptr<DepthMapReconstructor> m_depthReconstructor;

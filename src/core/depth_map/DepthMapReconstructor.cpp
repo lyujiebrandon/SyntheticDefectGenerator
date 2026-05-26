@@ -13,8 +13,18 @@ cv::Mat DepthMapReconstructor::computeSharpnessMap(const cv::Mat& frame, int ker
     cv::Mat laplacian;
     cv::Laplacian(gray, laplacian, CV_32F, kernelSize);
 
+    // Square the Laplacian response, then blur the result over a local window.
+    // Without the blur, sharpness is per-pixel noise — blurry background regions
+    // have tiny random values and a different frame "wins" at every pixel,
+    // making the background indistinguishable from the in-focus object.
+    // Aggregating over a neighbourhood ensures only truly in-focus regions
+    // produce a sustained high response.
     cv::Mat sharpness;
     cv::multiply(laplacian, laplacian, sharpness);
+
+    int blurKernel = kernelSize * 2 + 1;  // always odd; ~2× the laplacian scale
+    cv::GaussianBlur(sharpness, sharpness, cv::Size(blurKernel, blurKernel), 0);
+
     return sharpness;
 }
 
@@ -29,31 +39,28 @@ bool DepthMapReconstructor::reconstruct(const std::vector<cv::Mat>& stack,
     const int cols = stack[0].cols;
     const int N    = static_cast<int>(stack.size());
 
-    // Accumulate: best sharpness per pixel and the frame index that won
     cv::Mat bestSharpness = cv::Mat::zeros(rows, cols, CV_32F);
     m_depthMap            = cv::Mat::zeros(rows, cols, CV_32F);
 
     for (int i = 0; i < N; ++i) {
         cv::Mat sharpness = computeSharpnessMap(stack[i], params.kernelSize);
 
-        // For each pixel, if this frame is sharper, record its index as depth
-        for (int y = 0; y < rows; ++y) {
-            for (int x = 0; x < cols; ++x) {
-                float s = sharpness.at<float>(y, x);
-                if (s > bestSharpness.at<float>(y, x)) {
-                    bestSharpness.at<float>(y, x) = s;
-                    m_depthMap.at<float>(y, x)    = static_cast<float>(i);
-                }
-            }
-        }
+        // Vectorised winner-takes-all: update depth wherever this frame is sharper
+        cv::Mat mask;
+        cv::compare(sharpness, bestSharpness, mask, cv::CMP_GT);
+        m_depthMap.setTo(static_cast<float>(i), mask);
+        cv::max(bestSharpness, sharpness, bestSharpness);
 
         if (onProgress) {
-            int pct = (i + 1) * 100 / N;
-            onProgress(pct, QString("Processing frame %1 / %2").arg(i + 1).arg(N));
+            onProgress((i + 1) * 100 / N,
+                       QString("Processing frame %1 / %2").arg(i + 1).arg(N));
         }
     }
 
-    // Normalize depth map to [0, 255] for display
+    // Gaussian smooth the raw depth map to fill noisy speckles at region
+    // boundaries and in low-texture background areas.
+    cv::GaussianBlur(m_depthMap, m_depthMap, cv::Size(7, 7), 0);
+
     cv::normalize(m_depthMap, m_depthMap, 0, 255, cv::NORM_MINMAX);
     return true;
 }
