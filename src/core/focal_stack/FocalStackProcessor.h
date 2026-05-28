@@ -5,27 +5,15 @@
 #include <QString>
 #include <opencv2/core.hpp>
 
-class ICameraModule;
-class ILiquidLensController;
-
-// Drives the liquid lens through a dioptre sweep, triggering one camera
-// frame per step. Stores the raw focal stack for the ImageRegistrator.
+// Loads a focal stack from a folder of images and stores it for the
+// ImageRegistrator and DepthMapReconstructor pipeline stages.
 class FocalStackProcessor
 {
 public:
-    struct SweepParams {
-        double startDioptre = -2.0;
-        double endDioptre   =  2.0;
-        int    imageCount   = 20;
-    };
-
     using ProgressCallback = std::function<void(int percent, const QString& message)>;
 
-    bool captureStack(ICameraModule& camera,
-                      ILiquidLensController& lens,
-                      const SweepParams& params,
-                      ProgressCallback onProgress = {});
-
+    // Reads all supported images from folderPath in filename order (ascending).
+    // Images should be named so they sort by focal distance, e.g. frame_01.png…frame_20.png.
     bool loadFromFolder(const QString& folderPath, ProgressCallback onProgress = {});
 
     bool hasStack() const { return !m_stack.empty(); }

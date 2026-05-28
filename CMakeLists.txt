@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(SyntheticDefectGenerator
-    VERSION 0.2.0
-    DESCRIPTION "Automated 3D Synthetic Defect Generator via Depth from Focus (Liquid Lens)"
+    VERSION 0.3.0
+    DESCRIPTION "Automated 3D Synthetic Defect Generator via Depth from Focus"
     LANGUAGES CXX
 )
 
@@ -19,30 +19,19 @@ set(CMAKE_AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/src/ui)
 
 # ─── Qt6 ─────────────────────────────────────────────────────────────────────
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets Gui Concurrent)
-find_package(Qt6 OPTIONAL_COMPONENTS SerialPort)   # needed for Optotune lens control
 
-# ─── OpenCV (force vc16 runtime for pre-built binaries on VS 2022) ────────────
+# ─── OpenCV ──────────────────────────────────────────────────────────────────
 set(OpenCV_ARCH x64)
 set(OpenCV_RUNTIME vc16)
 find_package(OpenCV REQUIRED)
-
-# ─── SVS-VISTEK SVCam Kit SDK (optional) ─────────────────────────────────────
-set(SVS_SDK_ROOT "C:/Program Files/SVS-VISTEK GmbH/SVCam Kit/SDK")
-set(SVS_SDK_INCLUDE "${SVS_SDK_ROOT}/include")
-set(SVS_SDK_LIB     "${SVS_SDK_ROOT}/lib/SVGenSDK64.lib")
-
-if(EXISTS "${SVS_SDK_INCLUDE}/sv_gen_sdk.h" AND EXISTS "${SVS_SDK_LIB}")
-    set(SDG_HAVE_SVS_SDK TRUE)
-    message(STATUS "SVS-VISTEK SDK found — real camera support enabled")
-else()
-    set(SDG_HAVE_SVS_SDK FALSE)
-    message(STATUS "SVS-VISTEK SDK NOT found at ${SVS_SDK_ROOT} — real camera support disabled (install SDK to enable)")
-endif()
 
 # ─── CUDA (Phase 3 — uncomment when ready) ────────────────────────────────────
 # enable_language(CUDA)
 # set(CMAKE_CUDA_STANDARD 17)
 # find_package(CUDAToolkit REQUIRED)
+
+# ─── Suppress Windows min/max macros (conflict with OpenCV templates) ────────
+add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
 
 # ─── Source Files ─────────────────────────────────────────────────────────────
 set(SDG_SOURCES
@@ -50,10 +39,6 @@ set(SDG_SOURCES
 
     # UI
     src/ui/MainWindow.cpp
-
-    # Camera
-    src/camera/MockCameraModule.cpp
-    src/camera/FileCameraModule.cpp
 
     # Core pipeline
     src/core/focal_stack/FocalStackProcessor.cpp
@@ -64,13 +49,6 @@ set(SDG_SOURCES
 
 set(SDG_HEADERS
     src/ui/MainWindow.h
-
-    # Camera
-    src/camera/ICameraModule.h
-    src/camera/ILiquidLensController.h
-    src/camera/MockCameraModule.h
-    src/camera/MockLiquidLensController.h
-    src/camera/FileCameraModule.h
 
     # Core pipeline
     src/core/focal_stack/FocalStackProcessor.h
@@ -83,14 +61,6 @@ set(SDG_HEADERS
 set(SDG_UI_FILES
     src/ui/MainWindow.ui
 )
-
-if(SDG_HAVE_SVS_SDK)
-    list(APPEND SDG_SOURCES src/camera/RealCameraModule.cpp)
-    list(APPEND SDG_HEADERS src/camera/RealCameraModule.h)
-endif()
-
-# ─── Suppress Windows min/max macros (conflict with OpenCV templates) ────────
-add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
 
 # ─── Executable ───────────────────────────────────────────────────────────────
 add_executable(${PROJECT_NAME}
@@ -113,25 +83,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     ${OpenCV_LIBS}
     # CUDA::cudart   # Phase 3
 )
-
-if(SDG_HAVE_SVS_SDK)
-    target_include_directories(${PROJECT_NAME} PRIVATE ${SVS_SDK_INCLUDE})
-    target_link_libraries(${PROJECT_NAME} PRIVATE ${SVS_SDK_LIB})
-    target_compile_definitions(${PROJECT_NAME} PRIVATE SDG_HAVE_SVS_SDK)
-endif()
-
-# ─── Qt SerialPort (optional — enables Optotune lens control) ─────────────────
-if(Qt6SerialPort_FOUND)
-    target_sources(${PROJECT_NAME} PRIVATE
-        src/camera/RealLiquidLensController.cpp
-        src/camera/RealLiquidLensController.h
-    )
-    target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::SerialPort)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE SDG_HAVE_SERIAL_PORT)
-    message(STATUS "Qt6 SerialPort found — Optotune lens control enabled")
-else()
-    message(STATUS "Qt6 SerialPort NOT found — lens will use mock control (install via Qt Maintenance Tool to enable)")
-endif()
 
 # ─── Deploy Qt DLLs (Windows Release) ────────────────────────────────────────
 if(WIN32)

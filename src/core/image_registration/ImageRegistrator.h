@@ -35,7 +35,10 @@ public:
     bool hasRegisteredStack() const { return m_registered; }
 
 private:
-    cv::Mat alignFrame(const cv::Mat& reference,
+    // Takes pre-processed reference images (float, blurred) at full and ¼ scale
+    // to avoid recomputing them for every frame.
+    cv::Mat alignFrame(const cv::Mat& refFull,
+                       const cv::Mat& refSmall,
                        const cv::Mat& frame,
                        const Params& params);
 
