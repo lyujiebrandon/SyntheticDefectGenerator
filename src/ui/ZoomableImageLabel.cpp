@@ -55,10 +55,10 @@ void ZoomableImageLabel::paintEvent(QPaintEvent*)
 {
     QPainter p(this);
     p.setRenderHint(QPainter::SmoothPixmapTransform);
-    p.fillRect(rect(), QColor(0x0a, 0x0a, 0x14));
+    p.fillRect(rect(), QColor(0xe8, 0xea, 0xf8));
 
     if (m_pixmap.isNull()) {
-        p.setPen(QColor(0x35, 0x38, 0x58));
+        p.setPen(QColor(0xa0, 0xa8, 0xd0));
         QFont f = p.font();
         f.setPointSize(9);
         p.setFont(f);
@@ -74,14 +74,14 @@ void ZoomableImageLabel::paintEvent(QPaintEvent*)
     p.setFont(f);
 
     if (m_zoom != 1.0) {
-        p.setPen(QColor(180, 195, 255, 200));
+        p.setPen(QColor(30, 55, 160, 200));
         f.setBold(true);
         p.setFont(f);
         p.drawText(rect().adjusted(0, 0, -7, -5),
                    Qt::AlignBottom | Qt::AlignRight,
                    QString("%1%").arg(static_cast<int>(std::round(m_zoom * 100))));
     } else if (m_hovered) {
-        p.setPen(QColor(255, 255, 255, 50));
+        p.setPen(QColor(60, 80, 160, 110));
         p.drawText(rect().adjusted(0, 0, -7, -5),
                    Qt::AlignBottom | Qt::AlignRight,
                    "Scroll to zoom  \xB7  Drag to pan  \xB7  Dbl-click to reset");

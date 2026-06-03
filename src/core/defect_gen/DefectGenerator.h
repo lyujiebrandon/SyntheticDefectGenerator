@@ -8,8 +8,9 @@
 #include <QString>
 #include <opencv2/core.hpp>
 
-// Applies procedural geometric deformations to a depth map to simulate
-// physically realistic surface anomalies (Phase 2 core algorithm).
+// Applies procedural geometric deformations to a depth map to determine defect
+// geometry, then renders those defects as visual darkening onto the all-in-focus
+// reference image.  The exported images look like real photos of defective parts.
 class DefectGenerator
 {
 public:
@@ -26,7 +27,11 @@ public:
 
     using ProgressCallback = std::function<void(int percent, const QString& message)>;
 
+    // referenceImage: all-in-focus grayscale composite from DepthMapReconstructor.
+    // Defects are rendered as realistic darkening on this image.
+    // If referenceImage is empty, falls back to a colourised depth map.
     bool generate(const cv::Mat& depthMap,
+                  const cv::Mat& referenceImage,
                   const Params& params,
                   ProgressCallback onProgress = {});
 
@@ -39,8 +44,8 @@ public:
                        ProgressCallback onProgress = {}) const;
 
 private:
-    // Returns the defected image AND its bounding rect in one call
-    std::pair<cv::Mat, cv::Rect> applyDefect(const cv::Mat& depthMap, DefectType type,
+    std::pair<cv::Mat, cv::Rect> applyDefect(const cv::Mat& refImage,
+                                              DefectType type,
                                               float severity, float scale) const;
 
     std::pair<cv::Mat, cv::Rect> applyScratch(const cv::Mat& src, float severity, float scale) const;
@@ -48,11 +53,17 @@ private:
     std::pair<cv::Mat, cv::Rect> applyCrack  (const cv::Mat& src, float severity, float scale) const;
     std::pair<cv::Mat, cv::Rect> applyPit    (const cv::Mat& src, float severity, float scale) const;
 
-    cv::Mat   buildProductMask(const cv::Mat& depthMap) const;
+    cv::Mat buildProductMask(const cv::Mat& depthMap) const;
     cv::Point samplePointInMask(std::mt19937& rng) const;
+
+    // Helpers for visual defect rendering
+    static void darkenWithMask(cv::Mat& image, const cv::Mat& mask8U, float amount);
+    static void darkenGaussian(cv::Mat& image, cv::Point center, int radius,
+                                float peakAmount, float sigma);
 
     std::vector<cv::Mat>     m_outputImages;
     std::vector<DefectType>  m_outputLabels;
     std::vector<cv::Rect>    m_outputBounds;
     cv::Mat                  m_productMask;
+    cv::Mat                  m_referenceImage;  // all-in-focus base image (CV_8U)
 };

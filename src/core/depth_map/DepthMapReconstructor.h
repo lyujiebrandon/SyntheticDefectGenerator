@@ -30,11 +30,15 @@ public:
                      const std::vector<float>& focalPowers = {},
                      ProgressCallback onProgress = {});
 
-    bool hasDepthMap() const { return !m_depthMap.empty(); }
-    const cv::Mat& getDepthMap() const { return m_depthMap; }
+    bool hasDepthMap()        const { return !m_depthMap.empty(); }
+    const cv::Mat& getDepthMap()        const { return m_depthMap; }
+
+    bool hasAllInFocusImage() const { return !m_allInFocusImage.empty(); }
+    const cv::Mat& getAllInFocusImage() const { return m_allInFocusImage; }
 
 private:
     cv::Mat computeSharpnessMap(const cv::Mat& frame, const Params& params) const;
 
-    cv::Mat m_depthMap;   // CV_32F, [0.0, 1.0] normalized diopter depth
+    cv::Mat m_depthMap;        // CV_32F, [0.0, 1.0] normalized diopter depth
+    cv::Mat m_allInFocusImage; // CV_8U grayscale — sharpest pixel per location across all frames
 };

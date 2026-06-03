@@ -229,7 +229,10 @@ void MainWindow::onGenerateDefects()
     setControlsEnabled(false);
     m_progressBar->setVisible(true);
 
-    bool ok = m_defectGenerator->generate(m_depthReconstructor->getDepthMap(), params,
+    bool ok = m_defectGenerator->generate(
+        m_depthReconstructor->getDepthMap(),
+        m_depthReconstructor->getAllInFocusImage(),
+        params,
         [this](int pct, const QString& msg){ onOperationProgress(pct, msg); });
 
     if (ok) {
@@ -371,11 +374,9 @@ void MainWindow::renderDefectPreview()
 {
     if (m_previewDefectImage.empty()) return;
 
+    // Output images are BGR actual photos — convert to RGB for Qt display.
     cv::Mat display;
-    cv::Mat norm;
-    cv::normalize(m_previewDefectImage, norm, 0, 255, cv::NORM_MINMAX);
-    norm.convertTo(display, CV_8U);
-    cv::applyColorMap(display, display, cv::COLORMAP_JET);
+    cv::cvtColor(m_previewDefectImage, display, cv::COLOR_BGR2RGB);
 
     if (ui->chkShowDefectBounds->isChecked() && m_previewDefectBounds.area() > 0) {
         cv::rectangle(display, m_previewDefectBounds, cv::Scalar(0, 230, 255), 2);

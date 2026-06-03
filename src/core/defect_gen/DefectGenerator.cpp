@@ -8,15 +8,68 @@
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// Clamp a Rect inside the image bounds
 static cv::Rect clampRect(cv::Rect r, int cols, int rows)
 {
     return r & cv::Rect(0, 0, cols, rows);
 }
 
+// Expand a single-channel CV_32F factor map to match an image's channel count,
+// then multiply in-place.  cv::multiply requires identical channel counts.
+static void applyDarkFactor(cv::Mat& imgF, const cv::Mat& factor1ch)
+{
+    if (imgF.channels() == 1) {
+        cv::multiply(imgF, factor1ch, imgF);
+    } else {
+        std::vector<cv::Mat> ch(imgF.channels(), factor1ch);
+        cv::Mat factorN;
+        cv::merge(ch, factorN);
+        cv::multiply(imgF, factorN, imgF);
+    }
+}
+
+// Darken image pixels where mask8U > 0 by a fixed fraction.
+void DefectGenerator::darkenWithMask(cv::Mat& image, const cv::Mat& mask8U, float amount)
+{
+    cv::Mat maskF;
+    mask8U.convertTo(maskF, CV_32F, 1.0f / 255.0f);
+
+    // darkFactor = 1.0 where mask==0, (1 - amount) where mask==255
+    cv::Mat factor = cv::Mat::ones(image.size(), CV_32F) - maskF * amount;
+    cv::max(factor, 0.0f, factor);
+
+    cv::Mat imgF;
+    image.convertTo(imgF, CV_32F);
+    applyDarkFactor(imgF, factor);
+    imgF.convertTo(image, CV_8U);
+}
+
+// Darken image with a Gaussian profile centred at a point (smooth dent / pit).
+void DefectGenerator::darkenGaussian(cv::Mat& image, cv::Point center, int radius,
+                                      float peakAmount, float sigma)
+{
+    // Build a 1-channel dark factor map, then expand to match image channels.
+    cv::Mat factor = cv::Mat::ones(image.size(), CV_32F);
+    int r = radius;
+    for (int y = std::max(0, center.y - r); y < std::min(image.rows, center.y + r); ++y) {
+        for (int x = std::max(0, center.x - r); x < std::min(image.cols, center.x + r); ++x) {
+            float dx = static_cast<float>(x - center.x) / r;
+            float dy = static_cast<float>(y - center.y) / r;
+            float d2 = dx * dx + dy * dy;
+            if (d2 <= 1.0f)
+                factor.at<float>(y, x) = 1.0f - peakAmount * std::exp(-sigma * d2);
+        }
+    }
+
+    cv::Mat imgF;
+    image.convertTo(imgF, CV_32F);
+    applyDarkFactor(imgF, factor);
+    imgF.convertTo(image, CV_8U);
+}
+
 // ─── Public ───────────────────────────────────────────────────────────────────
 
 bool DefectGenerator::generate(const cv::Mat& depthMap,
+                                const cv::Mat& referenceImage,
                                 const Params& params,
                                 ProgressCallback onProgress)
 {
@@ -26,7 +79,21 @@ bool DefectGenerator::generate(const cv::Mat& depthMap,
     m_outputLabels.clear();
     m_outputBounds.clear();
 
+    // Build product mask from the depth map (determines WHERE defects can go)
     m_productMask = buildProductMask(depthMap);
+
+    // Prepare the base image that defects will be rendered onto.
+    // Prefer the all-in-focus reference; fall back to a jet-colourised depth map.
+    if (!referenceImage.empty()) {
+        if (referenceImage.channels() == 1)
+            cv::cvtColor(referenceImage, m_referenceImage, cv::COLOR_GRAY2BGR);
+        else
+            m_referenceImage = referenceImage.clone();
+    } else {
+        cv::Mat norm;
+        cv::normalize(depthMap, norm, 0, 255, cv::NORM_MINMAX, CV_8U);
+        cv::applyColorMap(norm, m_referenceImage, cv::COLORMAP_JET);
+    }
 
     std::vector<DefectType> enabledTypes;
     if (params.enableScratch) enabledTypes.push_back(DefectType::Scratch);
@@ -41,9 +108,16 @@ bool DefectGenerator::generate(const cv::Mat& depthMap,
 
     for (int i = 0; i < params.defectCount; ++i) {
         DefectType type = enabledTypes[typeDist(rng)];
-        auto [defected, bounds] = applyDefect(depthMap, type, params.severity, params.scaleFactor);
+        auto [defected, bounds] = applyDefect(m_referenceImage, type,
+                                              params.severity, params.scaleFactor);
 
-        m_outputImages.push_back(std::move(defected));
+        // Light bilateral pass: removes residual noise without blurring the
+        // defect edges — bilateral preserves the sharp boundary between the
+        // darkened defect region and the surrounding surface.
+        cv::Mat cleaned;
+        cv::bilateralFilter(defected, cleaned, 5, 35.0, 5.0);
+
+        m_outputImages.push_back(std::move(cleaned));
         m_outputLabels.push_back(type);
         m_outputBounds.push_back(bounds);
 
@@ -78,10 +152,8 @@ bool DefectGenerator::exportDataset(const QString& outputDir, ProgressCallback o
         QString folder = labelToFolder(m_outputLabels[i]);
         QString path   = QString("%1/%2/img_%3.png").arg(outputDir, folder).arg(i, 5, 10, QChar('0'));
 
-        cv::Mat save8;
-        cv::normalize(m_outputImages[i], save8, 0, 255, cv::NORM_MINMAX);
-        save8.convertTo(save8, CV_8U);
-        cv::imwrite(path.toStdString(), save8);
+        // Images are already CV_8U BGR — write directly without normalisation.
+        cv::imwrite(path.toStdString(), m_outputImages[i]);
 
         if (onProgress) {
             int pct = (i + 1) * 100 / total;
@@ -95,7 +167,6 @@ bool DefectGenerator::exportDataset(const QString& outputDir, ProgressCallback o
 
 cv::Mat DefectGenerator::buildProductMask(const cv::Mat& depthMap) const
 {
-    // Depth map is [0.0, 1.0] CV_32F — normalize to [0, 255] before Otsu.
     cv::Mat depth8;
     cv::normalize(depthMap, depth8, 0, 255, cv::NORM_MINMAX, CV_8U);
 
@@ -106,17 +177,13 @@ cv::Mat DefectGenerator::buildProductMask(const cv::Mat& depthMap) const
     int    nonZero = cv::countNonZero(mask);
     double ratio   = static_cast<double>(nonZero) / total;
 
-    // Inversion check 1 — sparse result almost certainly means wrong polarity.
     if (ratio < 0.05) {
         cv::bitwise_not(mask, mask);
         ratio = 1.0 - ratio;
     }
 
-    // Inversion check 2 — when a flat background surface (table, stage) is
-    // within the focal range, Otsu classifies the HIGHER-DEPTH background as
-    // "object" and the actual part (lower depth, smaller area) as "background".
-    // Detect this by checking whether the mask mainly occupies the image border:
-    // a genuine product mask is central; a background mask wraps the whole frame.
+    // If the mask mainly occupies the image border it is the background, not the
+    // product — invert so the central object is selected.
     {
         const int bx = mask.cols / 10;
         const int by = mask.rows / 10;
@@ -136,8 +203,6 @@ cv::Mat DefectGenerator::buildProductMask(const cv::Mat& depthMap) const
         double borderRatio = static_cast<double>(cv::countNonZero(overlap))
                            / static_cast<double>(cv::countNonZero(borderStrip) + 1);
 
-        // If >65% of the image border is classified as "object", it is actually
-        // the background wrap — flip the mask so the central product is selected.
         if (borderRatio > 0.65) {
             cv::bitwise_not(mask, mask);
             ratio = 1.0 - ratio;
@@ -178,21 +243,23 @@ cv::Point DefectGenerator::samplePointInMask(std::mt19937& rng) const
 
 // ─── Defect dispatch ──────────────────────────────────────────────────────────
 
-std::pair<cv::Mat, cv::Rect> DefectGenerator::applyDefect(const cv::Mat& depthMap,
+std::pair<cv::Mat, cv::Rect> DefectGenerator::applyDefect(const cv::Mat& refImage,
                                                            DefectType type,
                                                            float severity,
                                                            float scale) const
 {
     switch (type) {
-        case DefectType::Scratch:    return applyScratch(depthMap, severity, scale);
-        case DefectType::ShallowDent:return applyDent   (depthMap, severity, scale);
-        case DefectType::Crack:      return applyCrack  (depthMap, severity, scale);
-        case DefectType::SurfacePit: return applyPit    (depthMap, severity, scale);
+        case DefectType::Scratch:    return applyScratch(refImage, severity, scale);
+        case DefectType::ShallowDent:return applyDent   (refImage, severity, scale);
+        case DefectType::Crack:      return applyCrack  (refImage, severity, scale);
+        case DefectType::SurfacePit: return applyPit    (refImage, severity, scale);
     }
-    return { depthMap.clone(), {} };
+    return { refImage.clone(), {} };
 }
 
 // ─── Individual defect types ──────────────────────────────────────────────────
+// Each function renders a visually realistic defect on the reference image by
+// darkening the affected area.  The product mask limits placement to the object.
 
 std::pair<cv::Mat, cv::Rect> DefectGenerator::applyScratch(const cv::Mat& src,
                                                             float severity,
@@ -205,18 +272,19 @@ std::pair<cv::Mat, cv::Rect> DefectGenerator::applyScratch(const cv::Mat& src,
     cv::Point p2 = samplePointInMask(rng);
     int thickness = std::max(1, static_cast<int>(scale));
 
+    // Draw the scratch as a dark line (mask) then darken those pixels
     cv::Mat mask = cv::Mat::zeros(src.size(), CV_8U);
     cv::line(mask, p1, p2, cv::Scalar(255), thickness);
     cv::bitwise_and(mask, m_productMask, mask);
-    // Depth map is [0.0, 1.0]; depress scratch pixels to a low Z-value.
-    result.setTo(cv::Scalar(-severity * 0.20f), mask);
+
+    // Slight blur softens the scratch edges for realism
+    cv::GaussianBlur(mask, mask, cv::Size(3, 3), 0.8);
+
+    darkenWithMask(result, mask, severity * 0.70f);
 
     int pad = thickness + 4;
-    cv::Rect bounds(std::min(p1.x, p2.x) - pad,
-                    std::min(p1.y, p2.y) - pad,
-                    std::abs(p2.x - p1.x) + 2 * pad,
-                    std::abs(p2.y - p1.y) + 2 * pad);
-
+    cv::Rect bounds(std::min(p1.x, p2.x) - pad, std::min(p1.y, p2.y) - pad,
+                    std::abs(p2.x - p1.x) + 2 * pad, std::abs(p2.y - p1.y) + 2 * pad);
     return { result, clampRect(bounds, src.cols, src.rows) };
 }
 
@@ -230,16 +298,11 @@ std::pair<cv::Mat, cv::Rect> DefectGenerator::applyDent(const cv::Mat& src,
     cv::Point center = samplePointInMask(rng);
     int r = std::max(5, static_cast<int>(20 * scale));
 
-    for (int y = std::max(0, center.y - r); y < std::min(src.rows, center.y + r); ++y) {
-        for (int x = std::max(0, center.x - r); x < std::min(src.cols, center.x + r); ++x) {
-            if (!m_productMask.empty() && m_productMask.at<uchar>(y, x) == 0) continue;
-            float dx = static_cast<float>(x - center.x) / r;
-            float dy = static_cast<float>(y - center.y) / r;
-            float d2 = dx * dx + dy * dy;
-            if (d2 <= 1.0f)
-                result.at<float>(y, x) += -severity * 0.16f * std::exp(-3.0f * d2);
-        }
-    }
+    if (!m_productMask.empty() && m_productMask.at<uchar>(center.y, center.x) == 0)
+        return { result, {} };
+
+    // Gaussian darkening — deepest at centre, fading toward edges
+    darkenGaussian(result, center, r, severity * 0.55f, 2.5f);
 
     cv::Rect bounds(center.x - r - 4, center.y - r - 4, 2*(r+4), 2*(r+4));
     return { result, clampRect(bounds, src.cols, src.rows) };
@@ -256,6 +319,10 @@ std::pair<cv::Mat, cv::Rect> DefectGenerator::applyCrack(const cv::Mat& src,
     int minX = cur.x, minY = cur.y, maxX = cur.x, maxY = cur.y;
 
     int segments = 6 + static_cast<int>(severity * 10);
+
+    // Accumulate the full crack mask before darkening (so blur smooths the whole crack)
+    cv::Mat crackMask = cv::Mat::zeros(src.size(), CV_8U);
+
     for (int i = 0; i < segments; ++i) {
         int dx = std::uniform_int_distribution<>(-30, 30)(rng);
         int dy = std::uniform_int_distribution<>(-30, 30)(rng);
@@ -263,16 +330,17 @@ std::pair<cv::Mat, cv::Rect> DefectGenerator::applyCrack(const cv::Mat& src,
                        std::clamp(cur.y + dy, 0, src.rows - 1));
 
         if (m_productMask.empty() || m_productMask.at<uchar>(next.y, next.x) > 0) {
-            cv::Mat mask = cv::Mat::zeros(src.size(), CV_8U);
-            cv::line(mask, cur, next, cv::Scalar(255), 1);
-            cv::bitwise_and(mask, m_productMask, mask);
-            result.setTo(cv::Scalar(-severity * 0.24f), mask);
+            cv::line(crackMask, cur, next, cv::Scalar(255), 1);
             cur = next;
         }
 
         minX = std::min(minX, cur.x); minY = std::min(minY, cur.y);
         maxX = std::max(maxX, cur.x); maxY = std::max(maxY, cur.y);
     }
+
+    cv::bitwise_and(crackMask, m_productMask, crackMask);
+    cv::GaussianBlur(crackMask, crackMask, cv::Size(3, 3), 0.8);
+    darkenWithMask(result, crackMask, severity * 0.75f);
 
     cv::Rect bounds(minX - 6, minY - 6, maxX - minX + 12, maxY - minY + 12);
     return { result, clampRect(bounds, src.cols, src.rows) };
@@ -288,11 +356,11 @@ std::pair<cv::Mat, cv::Rect> DefectGenerator::applyPit(const cv::Mat& src,
     cv::Point center = samplePointInMask(rng);
     int r = std::max(2, static_cast<int>(6 * scale));
 
-    cv::Mat pitMask = cv::Mat::zeros(src.size(), CV_8U);
-    cv::circle(pitMask, center, r, cv::Scalar(255), -1);
-    if (!m_productMask.empty())
-        cv::bitwise_and(pitMask, m_productMask, pitMask);
-    result.setTo(cv::Scalar(-severity * 0.32f), pitMask);
+    if (!m_productMask.empty() && m_productMask.at<uchar>(center.y, center.x) == 0)
+        return { result, {} };
+
+    // Tight Gaussian darkening — very dark centre, fast falloff
+    darkenGaussian(result, center, r, severity * 0.80f, 4.0f);
 
     cv::Rect bounds(center.x - r - 4, center.y - r - 4, 2*(r+4), 2*(r+4));
     return { result, clampRect(bounds, src.cols, src.rows) };

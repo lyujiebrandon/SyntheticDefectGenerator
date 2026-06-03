@@ -81,6 +81,23 @@ bool DepthMapReconstructor::reconstruct(const std::vector<cv::Mat>& stack,
                        QString("Processing frame %1 / %2").arg(i + 1).arg(N));
     }
 
+    // ── All-in-focus composite ────────────────────────────────────────────────
+    // For each pixel, copy the value from the frame where it was sharpest.
+    // This gives a fully-sharp image of the object (no blur anywhere) that the
+    // DefectGenerator uses as the base for visual defect rendering.
+    m_allInFocusImage = cv::Mat::zeros(rows, cols, CV_8U);
+    for (int i = 0; i < N; ++i) {
+        cv::Mat isFrame;
+        cv::compare(bestIdx, float(i), isFrame, cv::CMP_EQ);
+        stack[i].copyTo(m_allInFocusImage, isFrame);
+    }
+    // Bilateral denoise: adjacent pixels that won from different frames produce
+    // intensity variation (salt-and-pepper look).  Bilateral smooths this while
+    // preserving real edges on the object surface.
+    cv::Mat denoised;
+    cv::bilateralFilter(m_allInFocusImage, denoised, 7, 55.0, 7.0);
+    m_allInFocusImage = denoised;
+
     // ── Parabolic sub-frame interpolation ────────────────────────────────────
     // Winner-takes-all assigns integer depth values 0…N-1.  Fitting a parabola
     // through (prev, best, next) sharpness gives a fractional peak position,
