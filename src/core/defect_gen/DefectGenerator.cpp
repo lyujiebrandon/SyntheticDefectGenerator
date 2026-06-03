@@ -106,9 +106,42 @@ cv::Mat DefectGenerator::buildProductMask(const cv::Mat& depthMap) const
     int    nonZero = cv::countNonZero(mask);
     double ratio   = static_cast<double>(nonZero) / total;
 
+    // Inversion check 1 — sparse result almost certainly means wrong polarity.
     if (ratio < 0.05) {
         cv::bitwise_not(mask, mask);
         ratio = 1.0 - ratio;
+    }
+
+    // Inversion check 2 — when a flat background surface (table, stage) is
+    // within the focal range, Otsu classifies the HIGHER-DEPTH background as
+    // "object" and the actual part (lower depth, smaller area) as "background".
+    // Detect this by checking whether the mask mainly occupies the image border:
+    // a genuine product mask is central; a background mask wraps the whole frame.
+    {
+        const int bx = mask.cols / 10;
+        const int by = mask.rows / 10;
+
+        cv::Mat borderStrip = cv::Mat::zeros(mask.size(), CV_8U);
+        cv::rectangle(borderStrip, {0, 0},
+                      {mask.cols - 1, by - 1}, cv::Scalar(255), cv::FILLED);
+        cv::rectangle(borderStrip, {0, mask.rows - by},
+                      {mask.cols - 1, mask.rows - 1}, cv::Scalar(255), cv::FILLED);
+        cv::rectangle(borderStrip, {0, 0},
+                      {bx - 1, mask.rows - 1}, cv::Scalar(255), cv::FILLED);
+        cv::rectangle(borderStrip, {mask.cols - bx, 0},
+                      {mask.cols - 1, mask.rows - 1}, cv::Scalar(255), cv::FILLED);
+
+        cv::Mat overlap;
+        cv::bitwise_and(mask, borderStrip, overlap);
+        double borderRatio = static_cast<double>(cv::countNonZero(overlap))
+                           / static_cast<double>(cv::countNonZero(borderStrip) + 1);
+
+        // If >65% of the image border is classified as "object", it is actually
+        // the background wrap — flip the mask so the central product is selected.
+        if (borderRatio > 0.65) {
+            cv::bitwise_not(mask, mask);
+            ratio = 1.0 - ratio;
+        }
     }
 
     if (ratio > 0.90) {

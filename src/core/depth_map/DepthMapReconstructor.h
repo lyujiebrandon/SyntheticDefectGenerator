@@ -16,7 +16,7 @@ public:
     struct Params {
         int   kernelSize       = 7;     // Laplacian kernel (must be odd)
         float sharpnessMinimum = 30.f;  // Absolute floor: pixels below this are always masked
-        float sharpnessRatio   = 0.05f; // Fraction of scene peak sharpness below which pixels are masked
+        float sharpnessRatio   = 0.02f; // Fraction of scene peak sharpness below which pixels are masked
         float focalMin         = -4.5f; // Optotune liquid lens minimum (diopters)
         float focalMax         =  4.7f; // Optotune liquid lens maximum (diopters)
     };
