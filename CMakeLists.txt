@@ -39,6 +39,7 @@ set(SDG_SOURCES
 
     # UI
     src/ui/MainWindow.cpp
+    src/ui/ZoomableImageLabel.cpp
 
     # Core pipeline
     src/core/focal_stack/FocalStackProcessor.cpp
@@ -49,6 +50,7 @@ set(SDG_SOURCES
 
 set(SDG_HEADERS
     src/ui/MainWindow.h
+    src/ui/ZoomableImageLabel.h
 
     # Core pipeline
     src/core/focal_stack/FocalStackProcessor.h

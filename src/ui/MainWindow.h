@@ -3,6 +3,7 @@
 #include <QMainWindow>
 #include <QLabel>
 #include <QProgressBar>
+#include "ui/ZoomableImageLabel.h"
 #include <memory>
 #include <opencv2/core.hpp>
 
@@ -49,7 +50,7 @@ private slots:
 private:
     void setupConnections();
     void setControlsEnabled(bool enabled);
-    void showMatInLabel(QLabel* label, const cv::Mat& mat);
+    void showMatInLabel(ZoomableImageLabel* label, const cv::Mat& mat);
     void logMessage(const QString& message);
 
     // Renders the defect preview with or without the highlight box

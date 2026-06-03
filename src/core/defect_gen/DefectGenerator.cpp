@@ -95,8 +95,9 @@ bool DefectGenerator::exportDataset(const QString& outputDir, ProgressCallback o
 
 cv::Mat DefectGenerator::buildProductMask(const cv::Mat& depthMap) const
 {
+    // Depth map is [0.0, 1.0] CV_32F — normalize to [0, 255] before Otsu.
     cv::Mat depth8;
-    depthMap.convertTo(depth8, CV_8U);
+    cv::normalize(depthMap, depth8, 0, 255, cv::NORM_MINMAX, CV_8U);
 
     cv::Mat mask;
     cv::threshold(depth8, mask, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
@@ -174,7 +175,8 @@ std::pair<cv::Mat, cv::Rect> DefectGenerator::applyScratch(const cv::Mat& src,
     cv::Mat mask = cv::Mat::zeros(src.size(), CV_8U);
     cv::line(mask, p1, p2, cv::Scalar(255), thickness);
     cv::bitwise_and(mask, m_productMask, mask);
-    result.setTo(cv::Scalar(-severity * 50.0f), mask);
+    // Depth map is [0.0, 1.0]; depress scratch pixels to a low Z-value.
+    result.setTo(cv::Scalar(-severity * 0.20f), mask);
 
     int pad = thickness + 4;
     cv::Rect bounds(std::min(p1.x, p2.x) - pad,
@@ -202,7 +204,7 @@ std::pair<cv::Mat, cv::Rect> DefectGenerator::applyDent(const cv::Mat& src,
             float dy = static_cast<float>(y - center.y) / r;
             float d2 = dx * dx + dy * dy;
             if (d2 <= 1.0f)
-                result.at<float>(y, x) += -severity * 40.0f * std::exp(-3.0f * d2);
+                result.at<float>(y, x) += -severity * 0.16f * std::exp(-3.0f * d2);
         }
     }
 
@@ -231,7 +233,7 @@ std::pair<cv::Mat, cv::Rect> DefectGenerator::applyCrack(const cv::Mat& src,
             cv::Mat mask = cv::Mat::zeros(src.size(), CV_8U);
             cv::line(mask, cur, next, cv::Scalar(255), 1);
             cv::bitwise_and(mask, m_productMask, mask);
-            result.setTo(cv::Scalar(-severity * 60.0f), mask);
+            result.setTo(cv::Scalar(-severity * 0.24f), mask);
             cur = next;
         }
 
@@ -257,7 +259,7 @@ std::pair<cv::Mat, cv::Rect> DefectGenerator::applyPit(const cv::Mat& src,
     cv::circle(pitMask, center, r, cv::Scalar(255), -1);
     if (!m_productMask.empty())
         cv::bitwise_and(pitMask, m_productMask, pitMask);
-    result.setTo(cv::Scalar(-severity * 80.0f), pitMask);
+    result.setTo(cv::Scalar(-severity * 0.32f), pitMask);
 
     cv::Rect bounds(center.x - r - 4, center.y - r - 4, 2*(r+4), 2*(r+4));
     return { result, clampRect(bounds, src.cols, src.rows) };

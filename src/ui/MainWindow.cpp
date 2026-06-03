@@ -3,11 +3,13 @@
 
 #include <QApplication>
 #include <QDir>
+#include <QFile>
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QDateTime>
 #include <QPixmap>
 #include <QImage>
+#include <algorithm>
 
 #include <opencv2/imgproc.hpp>
 
@@ -78,11 +80,22 @@ void MainWindow::onBrowseStack()
     if (count == 0) {
         ui->lblImageCount->setText("No supported images found in this folder.");
         ui->lblImageCount->setStyleSheet("color: #e05050;");
+        ui->lblCsvStatus->setText("—");
+        ui->lblCsvStatus->setStyleSheet("color: #888;");
         ui->btnLoadStack->setEnabled(false);
     } else {
         ui->lblImageCount->setText(QString("%1 image(s) found — will load in filename order.").arg(count));
         ui->lblImageCount->setStyleSheet("color: #50c050;");
         ui->btnLoadStack->setEnabled(true);
+
+        // Detect metadata.csv in the selected folder
+        if (QFile::exists(dir + "/metadata.csv")) {
+            ui->lblCsvStatus->setText("metadata.csv detected — focal power data will be loaded.");
+            ui->lblCsvStatus->setStyleSheet("color: #50c050;");
+        } else {
+            ui->lblCsvStatus->setText("No metadata.csv — depth will use uniform focal spacing.");
+            ui->lblCsvStatus->setStyleSheet("color: #e0a050;");
+        }
     }
 }
 
@@ -105,6 +118,18 @@ void MainWindow::onLoadStack()
         QString status = QString("Stack loaded: %1 frames.").arg(stack.size());
         ui->lblStackStatus->setText(status);
         ui->lblStackStatus->setStyleSheet("color: #50c050; font-weight: bold;");
+
+        // Update CSV status label with the actual loaded focal range
+        if (m_focalProcessor->hasFocalPowers()) {
+            const auto& fp = m_focalProcessor->getFocalPowers();
+            float minFp = *std::min_element(fp.begin(), fp.end());
+            float maxFp = *std::max_element(fp.begin(), fp.end());
+            ui->lblCsvStatus->setText(
+                QString("Focal range: %1 to %2 diopters (%3 frames)")
+                .arg(minFp, 0, 'f', 1).arg(maxFp, 0, 'f', 1)
+                .arg(static_cast<int>(fp.size())));
+            ui->lblCsvStatus->setStyleSheet("color: #50c050;");
+        }
 
         onOperationComplete(status);
         ui->tabWidget->setTabEnabled(1, true);
@@ -168,7 +193,9 @@ void MainWindow::onReconstructDepthMap()
     setControlsEnabled(false);
     m_progressBar->setVisible(true);
 
-    bool ok = m_depthReconstructor->reconstruct(m_focalProcessor->getStack(), params,
+    bool ok = m_depthReconstructor->reconstruct(
+        m_focalProcessor->getStack(), params,
+        m_focalProcessor->getFocalPowers(),
         [this](int pct, const QString& msg){ onOperationProgress(pct, msg); });
 
     if (ok) {
@@ -295,16 +322,37 @@ void MainWindow::setControlsEnabled(bool enabled)
     ui->btnExportDataset->setEnabled(enabled);
 }
 
-void MainWindow::showMatInLabel(QLabel* label, const cv::Mat& mat)
+void MainWindow::showMatInLabel(ZoomableImageLabel* label, const cv::Mat& mat)
 {
     if (mat.empty()) return;
 
     cv::Mat display;
     if (mat.type() == CV_32F) {
+        // Build a mask of non-zero (object) pixels — zeros are masked background.
+        cv::Mat objectMask;
+        cv::threshold(mat, objectMask, 0.001f, 255.0f, cv::THRESH_BINARY);
+        objectMask.convertTo(objectMask, CV_8U);
+
+        // Normalize over the object's actual depth range, not the full [0, max]
+        // range. This prevents the background zeros from compressing all object
+        // variation into the red end of the Jet colormap.
+        double minVal = 0.0, maxVal = 1.0;
+        cv::minMaxLoc(mat, &minVal, &maxVal, nullptr, nullptr, objectMask);
+        double range = maxVal - minVal;
+
         cv::Mat norm;
-        cv::normalize(mat, norm, 0, 255, cv::NORM_MINMAX);
+        if (range > 1e-6)
+            mat.convertTo(norm, CV_32F, 255.0 / range, -minVal * 255.0 / range);
+        else
+            cv::normalize(mat, norm, 0, 255, cv::NORM_MINMAX);
+
         norm.convertTo(display, CV_8U);
         cv::applyColorMap(display, display, cv::COLORMAP_JET);
+
+        // Set background pixels to black rather than Jet's dark-blue zero-colour.
+        cv::Mat bgMask;
+        cv::bitwise_not(objectMask, bgMask);
+        display.setTo(cv::Scalar(0, 0, 0), bgMask);
     } else {
         mat.copyTo(display);
     }
@@ -316,8 +364,7 @@ void MainWindow::showMatInLabel(QLabel* label, const cv::Mat& mat)
                static_cast<int>(display.step),
                QImage::Format_RGB888);
 
-    label->setPixmap(QPixmap::fromImage(img).scaled(
-        label->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    label->setPixmap(QPixmap::fromImage(img.copy()));
 }
 
 void MainWindow::renderDefectPreview()
@@ -345,9 +392,7 @@ void MainWindow::renderDefectPreview()
 
     QImage img(display.data, display.cols, display.rows,
                static_cast<int>(display.step), QImage::Format_RGB888);
-    ui->lblDefectPreview->setPixmap(
-        QPixmap::fromImage(img).scaled(ui->lblDefectPreview->size(),
-                                       Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    ui->lblDefectPreview->setPixmap(QPixmap::fromImage(img));
 }
 
 void MainWindow::logMessage(const QString& message)

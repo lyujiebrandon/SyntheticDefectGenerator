@@ -22,7 +22,7 @@
           <layout class="QVBoxLayout">
            <item>
             <widget class="QLabel">
-             <property name="text"><string>Select a folder of images captured at different focal powers. Images are loaded in filename order — name them so they sort by focal distance (e.g. frame_01.png … frame_20.png).</string></property>
+             <property name="text"><string>Select a folder containing sequentially-named images (img_00.png – img_45.png) and a metadata.csv file that maps each filename to its focal power in diopters (e.g. "img_00.png, -4.2"). Without a CSV, images are loaded in filename order with uniform focal spacing.</string></property>
              <property name="wordWrap"><bool>true</bool></property>
              <property name="styleSheet"><string>color: #888; font-style: italic;</string></property>
             </widget>
@@ -50,6 +50,13 @@
              <property name="styleSheet"><string>color: #888;</string></property>
             </widget>
            </item>
+           <item>
+            <widget class="QLabel" name="lblCsvStatus">
+             <property name="text"><string>—</string></property>
+             <property name="styleSheet"><string>color: #888;</string></property>
+             <property name="wordWrap"><bool>true</bool></property>
+            </widget>
+           </item>
            <item><widget class="QFrame"><property name="frameShape"><enum>QFrame::HLine</enum></property></widget></item>
            <item>
             <widget class="QPushButton" name="btnLoadStack">
@@ -72,10 +79,8 @@
           <property name="title"><string>Stack Preview (middle frame)</string></property>
           <layout class="QVBoxLayout">
            <item>
-            <widget class="QLabel" name="lblCapturePreview">
-             <property name="text"><string>No image captured yet</string></property>
-             <property name="alignment"><set>Qt::AlignCenter</set></property>
-             <property name="styleSheet"><string>background: #1a1a1a; color: #666; border: 1px solid #444;</string></property>
+            <widget class="ZoomableImageLabel" name="lblCapturePreview">
+             <property name="sizePolicy"><sizepolicy hsizetype="Expanding" vsizetype="Expanding"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy></property>
             </widget>
            </item>
           </layout>
@@ -115,9 +120,9 @@
               <item row="1" column="0"><widget class="QLabel"><property name="text"><string>Max Iterations:</string></property></widget></item>
               <item row="1" column="1">
                <widget class="QSpinBox" name="spinEccIterations">
-                <property name="minimum"><number>10</number></property>
+                <property name="minimum"><number>5</number></property>
                 <property name="maximum"><number>200</number></property>
-                <property name="value"><number>50</number></property>
+                <property name="value"><number>20</number></property>
                </widget>
               </item>
               <item row="2" column="0"><widget class="QLabel"><property name="text"><string>Epsilon:</string></property></widget></item>
@@ -147,10 +152,8 @@
           <property name="title"><string>Registered Frame Preview</string></property>
           <layout class="QVBoxLayout">
            <item>
-            <widget class="QLabel" name="lblRegistrationPreview">
-             <property name="text"><string>Registered frames will appear here</string></property>
-             <property name="alignment"><set>Qt::AlignCenter</set></property>
-             <property name="styleSheet"><string>background: #1a1a1a; color: #666; border: 1px solid #444;</string></property>
+            <widget class="ZoomableImageLabel" name="lblRegistrationPreview">
+             <property name="sizePolicy"><sizepolicy hsizetype="Expanding" vsizetype="Expanding"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy></property>
             </widget>
            </item>
           </layout>
@@ -206,10 +209,8 @@
           <property name="title"><string>Depth Map Preview (Jet colormap)</string></property>
           <layout class="QVBoxLayout">
            <item>
-            <widget class="QLabel" name="lblDepthPreview">
-             <property name="text"><string>Depth map will appear here after reconstruction</string></property>
-             <property name="alignment"><set>Qt::AlignCenter</set></property>
-             <property name="styleSheet"><string>background: #1a1a1a; color: #666; border: 1px solid #444;</string></property>
+            <widget class="ZoomableImageLabel" name="lblDepthPreview">
+             <property name="sizePolicy"><sizepolicy hsizetype="Expanding" vsizetype="Expanding"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy></property>
             </widget>
            </item>
           </layout>
@@ -284,10 +285,8 @@
           <property name="title"><string>Defect Preview</string></property>
           <layout class="QVBoxLayout">
            <item>
-            <widget class="QLabel" name="lblDefectPreview">
-             <property name="text"><string>Generated defect samples will appear here</string></property>
-             <property name="alignment"><set>Qt::AlignCenter</set></property>
-             <property name="styleSheet"><string>background: #1a1a1a; color: #666; border: 1px solid #444;</string></property>
+            <widget class="ZoomableImageLabel" name="lblDefectPreview">
+             <property name="sizePolicy"><sizepolicy hsizetype="Expanding" vsizetype="Expanding"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy></property>
             </widget>
            </item>
            <item>
@@ -373,7 +372,6 @@
        <item>
         <widget class="QPlainTextEdit" name="textLog">
          <property name="readOnly"><bool>true</bool></property>
-         <property name="styleSheet"><string>background: #0d0d0d; color: #c0c0c0; font-family: Consolas; font-size: 10pt;</string></property>
         </widget>
        </item>
       </layout>
@@ -403,6 +401,14 @@
    <property name="text"><string>About</string></property>
   </action>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>ZoomableImageLabel</class>
+   <extends>QWidget</extends>
+   <header location="local">ui/ZoomableImageLabel.h</header>
+   <container>0</container>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections>
   <connection>
