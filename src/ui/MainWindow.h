@@ -37,6 +37,8 @@ private slots:
 
     // Tab 4 — Defect Generation
     void onGenerateDefects();
+    void onPrevDefect();
+    void onNextDefect();
 
     // Tab 5 — Dataset Export
     void onBrowseOutputDir();
@@ -53,12 +55,11 @@ private:
     void showMatInLabel(ZoomableImageLabel* label, const cv::Mat& mat);
     void logMessage(const QString& message);
 
-    // Renders the defect preview with or without the highlight box
-    void renderDefectPreview();
+    void renderDefectPreview();    // redraws the current defect index
+    void updateDefectNavigation(); // refreshes counter label and button states
 
-    cv::Mat  m_previewDefectImage;   // stored for toggle re-render
-    cv::Rect m_previewDefectBounds;
-    QString  m_previewDefectType;
+    int     m_currentDefectIndex = 0;
+    QString m_previewDefectType;
 
     Ui::MainWindow* ui;
 

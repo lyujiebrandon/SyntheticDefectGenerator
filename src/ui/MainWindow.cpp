@@ -56,6 +56,8 @@ void MainWindow::setupConnections()
     connect(ui->btnRegisterStack,    &QPushButton::clicked, this, &MainWindow::onRegisterStack);
     connect(ui->btnReconstructDepth, &QPushButton::clicked, this, &MainWindow::onReconstructDepthMap);
     connect(ui->btnGenerateDefects,  &QPushButton::clicked, this, &MainWindow::onGenerateDefects);
+    connect(ui->btnPrevDefect,       &QPushButton::clicked, this, &MainWindow::onPrevDefect);
+    connect(ui->btnNextDefect,       &QPushButton::clicked, this, &MainWindow::onNextDefect);
     connect(ui->chkShowDefectBounds, &QCheckBox::toggled,   this, [this]{ renderDefectPreview(); });
     connect(ui->btnBrowseOutput,     &QPushButton::clicked, this, &MainWindow::onBrowseOutputDir);
     connect(ui->btnExportDataset,    &QPushButton::clicked, this, &MainWindow::onExportDataset);
@@ -236,22 +238,60 @@ void MainWindow::onGenerateDefects()
         [this](int pct, const QString& msg){ onOperationProgress(pct, msg); });
 
     if (ok) {
-        m_previewDefectImage  = m_defectGenerator->getOutputImages().front();
-        m_previewDefectBounds = m_defectGenerator->getOutputBounds().front();
-        const DefectType t    = m_defectGenerator->getOutputLabels().front();
-        switch (t) {
-            case DefectType::Scratch:    m_previewDefectType = "Scratch";      break;
-            case DefectType::ShallowDent:m_previewDefectType = "Shallow Dent"; break;
-            case DefectType::Crack:      m_previewDefectType = "Crack";        break;
-            case DefectType::SurfacePit: m_previewDefectType = "Surface Pit";  break;
-        }
-        ui->lblDefectTypeTag->setText(m_previewDefectType);
+        m_currentDefectIndex = 0;
+        updateDefectNavigation();
         renderDefectPreview();
         onOperationComplete(QString("Generated %1 defect images.").arg(params.defectCount));
         ui->tabWidget->setTabEnabled(4, true);
     } else {
         onOperationError("Defect generation failed.");
     }
+}
+
+void MainWindow::onPrevDefect()
+{
+    if (m_currentDefectIndex > 0) {
+        --m_currentDefectIndex;
+        updateDefectNavigation();
+        renderDefectPreview();
+    }
+}
+
+void MainWindow::onNextDefect()
+{
+    if (!m_defectGenerator->hasOutput()) return;
+    int total = static_cast<int>(m_defectGenerator->getOutputImages().size());
+    if (m_currentDefectIndex < total - 1) {
+        ++m_currentDefectIndex;
+        updateDefectNavigation();
+        renderDefectPreview();
+    }
+}
+
+void MainWindow::updateDefectNavigation()
+{
+    if (!m_defectGenerator->hasOutput()) {
+        ui->lblDefectNav->setText("—");
+        ui->lblDefectTypeTag->setText("—");
+        ui->btnPrevDefect->setEnabled(false);
+        ui->btnNextDefect->setEnabled(false);
+        return;
+    }
+
+    const auto& labels = m_defectGenerator->getOutputLabels();
+    int total = static_cast<int>(labels.size());
+
+    switch (labels[m_currentDefectIndex]) {
+        case DefectType::Scratch:    m_previewDefectType = "Scratch";      break;
+        case DefectType::ShallowDent:m_previewDefectType = "Shallow Dent"; break;
+        case DefectType::Crack:      m_previewDefectType = "Crack";        break;
+        case DefectType::SurfacePit: m_previewDefectType = "Surface Pit";  break;
+    }
+
+    ui->lblDefectTypeTag->setText(m_previewDefectType);
+    ui->lblDefectNav->setText(QString("%1 / %2").arg(m_currentDefectIndex + 1).arg(total));
+    ui->btnPrevDefect->setEnabled(m_currentDefectIndex > 0);
+    ui->btnNextDefect->setEnabled(m_currentDefectIndex < total - 1);
 }
 
 // ─── Tab 5: Dataset Export ────────────────────────────────────────────────────
@@ -372,28 +412,32 @@ void MainWindow::showMatInLabel(ZoomableImageLabel* label, const cv::Mat& mat)
 
 void MainWindow::renderDefectPreview()
 {
-    if (m_previewDefectImage.empty()) return;
+    if (!m_defectGenerator->hasOutput()) return;
 
-    // Output images are BGR actual photos — convert to RGB for Qt display.
+    const auto& images = m_defectGenerator->getOutputImages();
+    const auto& bounds = m_defectGenerator->getOutputBounds();
+    if (m_currentDefectIndex >= static_cast<int>(images.size())) return;
+
+    // Output images are BGR — convert to RGB for Qt display.
     cv::Mat display;
-    cv::cvtColor(m_previewDefectImage, display, cv::COLOR_BGR2RGB);
+    cv::cvtColor(images[m_currentDefectIndex], display, cv::COLOR_BGR2RGB);
 
-    if (ui->chkShowDefectBounds->isChecked() && m_previewDefectBounds.area() > 0) {
-        cv::rectangle(display, m_previewDefectBounds, cv::Scalar(0, 230, 255), 2);
+    if (ui->chkShowDefectBounds->isChecked() && bounds[m_currentDefectIndex].area() > 0) {
+        const cv::Rect& r = bounds[m_currentDefectIndex];
+        cv::rectangle(display, r, cv::Scalar(220, 80, 30), 2);
 
-        cv::Point textPos(m_previewDefectBounds.x,
-                          std::max(0, m_previewDefectBounds.y - 6));
+        cv::Point textPos(r.x, std::max(0, r.y - 6));
         cv::putText(display, m_previewDefectType.toStdString(),
                     textPos, cv::FONT_HERSHEY_SIMPLEX, 0.45,
-                    cv::Scalar(0, 0, 0), 3, cv::LINE_AA);
+                    cv::Scalar(255, 255, 255), 3, cv::LINE_AA);
         cv::putText(display, m_previewDefectType.toStdString(),
                     textPos, cv::FONT_HERSHEY_SIMPLEX, 0.45,
-                    cv::Scalar(0, 230, 255), 1, cv::LINE_AA);
+                    cv::Scalar(220, 80, 30), 1, cv::LINE_AA);
     }
 
     QImage img(display.data, display.cols, display.rows,
                static_cast<int>(display.step), QImage::Format_RGB888);
-    ui->lblDefectPreview->setPixmap(QPixmap::fromImage(img));
+    ui->lblDefectPreview->setPixmap(QPixmap::fromImage(img.copy()));
 }
 
 void MainWindow::logMessage(const QString& message)
