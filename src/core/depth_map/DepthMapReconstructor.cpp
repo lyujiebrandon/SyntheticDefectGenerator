@@ -117,7 +117,7 @@ bool DepthMapReconstructor::reconstruct(const std::vector<cv::Mat>& stack,
 
         // Clamp Inf and large values to ±1 (one frame either side of the peak)
         cv::min(offset, 1.0, offset);
-        cv::max(offset, -1.0, offset);
+        cv::max(offset, -1.0, offset);  
 
         // Only apply to interior frames — first and last have no prev/next
         cv::Mat gt0, ltNm1, isInterior, isBorder;
@@ -215,3 +215,4 @@ bool DepthMapReconstructor::reconstruct(const std::vector<cv::Mat>& stack,
     // m_depthMap is now CV_32F in [0.0, 1.0] — ready for DefectGenerator.
     return true;
 }
+    

@@ -33,26 +33,29 @@ find_package(OpenCV REQUIRED)
 # ─── Suppress Windows min/max macros (conflict with OpenCV templates) ────────
 add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
 
-# ─── Source Files ─────────────────────────────────────────────────────────────
-set(SDG_SOURCES
-    src/main.cpp
-
-    # UI
-    src/ui/MainWindow.cpp
-    src/ui/ZoomableImageLabel.cpp
-
-    # Core pipeline
+# ─── Core pipeline library (no UI, linkable by tests) ────────────────────────
+add_library(SDG_Core STATIC
     src/core/focal_stack/FocalStackProcessor.cpp
     src/core/image_registration/ImageRegistrator.cpp
     src/core/depth_map/DepthMapReconstructor.cpp
     src/core/defect_gen/DefectGenerator.cpp
 )
 
+target_include_directories(SDG_Core PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${OpenCV_INCLUDE_DIRS}
+)
+
+target_link_libraries(SDG_Core PUBLIC
+    Qt6::Core
+    ${OpenCV_LIBS}
+)
+
+# ─── Main executable ──────────────────────────────────────────────────────────
 set(SDG_HEADERS
     src/ui/MainWindow.h
     src/ui/ZoomableImageLabel.h
-
-    # Core pipeline
     src/core/focal_stack/FocalStackProcessor.h
     src/core/image_registration/ImageRegistrator.h
     src/core/depth_map/DepthMapReconstructor.h
@@ -60,34 +63,38 @@ set(SDG_HEADERS
     src/core/defect_gen/DefectTypes.h
 )
 
-set(SDG_UI_FILES
+add_executable(${PROJECT_NAME}
+    src/main.cpp
+    src/ui/MainWindow.cpp
+    src/ui/ZoomableImageLabel.cpp
+    ${SDG_HEADERS}
     src/ui/MainWindow.ui
 )
 
-# ─── Executable ───────────────────────────────────────────────────────────────
-add_executable(${PROJECT_NAME}
-    ${SDG_SOURCES}
-    ${SDG_HEADERS}
-    ${SDG_UI_FILES}
-)
-
-target_include_directories(${PROJECT_NAME} PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${OpenCV_INCLUDE_DIRS}
-)
-
 target_link_libraries(${PROJECT_NAME} PRIVATE
-    Qt6::Core
+    SDG_Core
     Qt6::Widgets
     Qt6::Gui
     Qt6::Concurrent
-    ${OpenCV_LIBS}
     # CUDA::cudart   # Phase 3
 )
 
-# ─── Deploy Qt DLLs (Windows Release) ────────────────────────────────────────
+# ─── Tests ────────────────────────────────────────────────────────────────────
+enable_testing()
+add_subdirectory(tests)
+
+# ─── Deploy runtime DLLs (Windows) ───────────────────────────────────────────
 if(WIN32)
+    # Step 1: copy all imported DLLs (OpenCV, etc.) into the output directory.
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:${PROJECT_NAME}>
+            $<TARGET_FILE_DIR:${PROJECT_NAME}>
+        COMMAND_EXPAND_LISTS
+        COMMENT "Copying runtime DLLs..."
+    )
+
+    # Step 2: windeployqt adds Qt DLLs and platform plugins.
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         COMMAND "${Qt6_DIR}/../../../bin/windeployqt.exe"
             --no-translations

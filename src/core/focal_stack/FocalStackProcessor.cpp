@@ -59,7 +59,7 @@ bool FocalStackProcessor::loadFromFolder(const QString& folderPath, ProgressCall
 
         for (const QString& fname : allFiles) {
             bool  ok    = false;
-            float power = QFileInfo(fname).baseName().toFloat(&ok);
+            float power = QFileInfo(fname).completeBaseName().toFloat(&ok);
             if (ok)
                 focalFiles.push_back({power, fname});
             else
